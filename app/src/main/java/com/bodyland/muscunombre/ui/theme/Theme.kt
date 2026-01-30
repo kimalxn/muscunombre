@@ -12,7 +12,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-// Couleurs personnalisées pour Bodyland
+// Couleurs personnalisées pour Gym Rat
 private val primaryLight = Color(0xFF2E7D32) // Vert sportif
 private val onPrimaryLight = Color(0xFFFFFFFF)
 private val primaryContainerLight = Color(0xFFA5D6A7)

@@ -1,98 +1,99 @@
-# MuscuNombre - Bodyland Tracker 🏋️
+# Gym Rat 🐀
 
-Application Android pour tracker tes séances à la salle de sport Bodyland.
+Application Android pour tracker tes séances à la salle de sport.
 
-## Fonctionnalités
+---
 
-- **Onglet Suivi des Séances** : Bouton pour pointer chaque visite à la salle
-- **Compteur automatique** : Affiche le nombre total de séances
-- **Calcul du coût par séance** : Prix de l'abonnement ÷ Nombre de séances
-- **Onglet Réglages** : Configuration du prix de l'abonnement annuel
-- **Période personnalisable** : Choix des dates de début et fin (par défaut: 1er août 2025 - 30 septembre 2026)
-- **Persistance des données** : Tes données sont sauvegardées localement
+## 📱 Installation sur Android (SUPER SIMPLE)
 
-## Technologies
+### Méthode 1 : Télécharger l'APK déjà compilée
+Si quelqu'un t'envoie le fichier `app-debug.apk` :
+1. Copie le fichier sur ton téléphone (par email, Drive, câble USB...)
+2. Sur ton téléphone, va dans **Paramètres → Sécurité**
+3. Active **"Sources inconnues"** ou **"Installer applis inconnues"**
+4. Ouvre le fichier APK et clique **Installer**
+5. C'est prêt ! 🎉
 
-- Kotlin
-- Jetpack Compose (Material Design 3)
-- DataStore pour la persistance
-- Architecture MVVM
+---
 
-## Build l'APK
+### Méthode 2 : Compiler toi-même (Mac)
 
-### Prérequis
-- Android Studio Hedgehog (2023.1.1) ou plus récent
-- JDK 17
-- Android SDK 34
+#### Étape 1 : Installer les outils (une seule fois)
+Ouvre le **Terminal** (cherche "Terminal" dans Spotlight) et copie-colle ces commandes :
 
-### Étapes
+```bash
+# Installer Homebrew (gestionnaire de paquets)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-1. **Ouvrir le projet dans Android Studio**
-   ```bash
-   cd muscunombre
-   ```
-   Ouvrir le dossier avec Android Studio
+# Installer Java 17
+brew install openjdk@17
 
-2. **Synchroniser Gradle**
-   Android Studio synchronisera automatiquement les dépendances
-
-3. **Générer l'APK Debug**
-   ```bash
-   ./gradlew assembleDebug
-   ```
-   L'APK sera dans `app/build/outputs/apk/debug/app-debug.apk`
-
-4. **Générer l'APK Release (signé)**
-   ```bash
-   ./gradlew assembleRelease
-   ```
-
-### Installation sur téléphone
-
-1. Activer les "Sources inconnues" dans les paramètres Android
-2. Transférer l'APK sur le téléphone
-3. Installer l'APK
-
-## Utilisation
-
-1. **Premier lancement** : Va dans l'onglet "Réglages"
-2. **Configure le prix** : Entre le prix de ton abonnement annuel (ex: 400€)
-3. **Définis la période** : Clique sur le bouton pour définir la période par défaut ou choisis tes dates
-4. **Pointe tes séances** : Chaque fois que tu vas à la salle, clique sur "Allé à la salle aujourd'hui !"
-5. **Suis tes stats** : Observe ton coût par séance diminuer à chaque visite !
-
-## Calcul
-
-```
-Coût par séance = Prix de l'abonnement ÷ Nombre de séances
-
-Exemple:
-- Abonnement: 400€
-- Séances: 10
-- Coût par séance: 40€
+# Ajouter Java au PATH
+echo 'export JAVA_HOME=/opt/homebrew/opt/openjdk@17' >> ~/.zshrc
+source ~/.zshrc
 ```
 
-## Structure du projet
+#### Étape 2 : Compiler l'APK
+Dans le Terminal, va dans le dossier du projet et compile :
 
-```
-app/
-├── src/main/
-│   ├── java/com/bodyland/muscunombre/
-│   │   ├── MainActivity.kt          # UI principale avec Compose
-│   │   ├── GymViewModel.kt           # Logique métier et persistance
-│   │   └── ui/theme/
-│   │       ├── Theme.kt              # Thème Material 3
-│   │       └── Type.kt               # Typographie
-│   ├── res/
-│   │   ├── values/                   # Strings, colors, themes
-│   │   ├── drawable/                 # Icônes
-│   │   └── xml/                      # Règles de backup
-│   └── AndroidManifest.xml
-├── build.gradle.kts
-└── proguard-rules.pro
+```bash
+cd ~/Projects/muscunombre
+./gradlew assembleDebug
 ```
 
-## Licence
+⏳ Attends que ça finisse (ça peut prendre 1-2 minutes la première fois).
 
-MIT
-APK Android qui compte le nombre de fois où je vais à la salle par mois et le ratio que j'ai payé
+#### Étape 3 : Récupérer l'APK
+L'APK est ici : `app/build/outputs/apk/debug/app-debug.apk`
+
+Pour l'envoyer sur ton téléphone :
+```bash
+# Lance un serveur web temporaire
+cd app/build/outputs/apk/debug
+python3 -m http.server 8080
+```
+
+Puis sur ton téléphone, ouvre Chrome et va sur :
+```
+http://[IP-DE-TON-MAC]:8080/app-debug.apk
+```
+
+💡 Pour trouver l'IP de ton Mac : `ipconfig getifaddr en0`
+
+---
+
+## 🎮 Fonctionnalités
+
+- **Onboarding** : Choisis ta date de début (fin = +365 jours auto)
+- **4 Onglets** : Suivi, Calendrier, Utilisateur, Réglages
+- **Activités** : Dynamo, Circuit Training 1 & 2, Cardio Boxing, Workout, Running
+- **Gamification** : 6 tiers de 🐀 Vieux Rongeur à 🏆 Légende
+- **Prix/séance** : Calcul automatique basé sur ton abonnement
+
+## 🏆 Tiers
+
+| Tier | Nom | Séances |
+|------|-----|---------|
+| 1 | 🐀 Vieux Rongeur | 0-10 |
+| 2 | 🐭 Mini Mouse | 11-25 |
+| 3 | 🐭⚔️ Knight Mouse | 26-50 |
+| 4 | 👑🐀 King Rat | 51-100 |
+| 5 | 🦍 Oonga Boonga | 101-200 |
+| 6 | 🏆✨ Légende | 201+ |
+
+---
+
+## ❓ Problèmes fréquents
+
+**"Command not found: ./gradlew"**
+→ Tu n'es pas dans le bon dossier. Fais `cd ~/Projects/muscunombre`
+
+**"JAVA_HOME is not set"**
+→ Relance le terminal ou fais `source ~/.zshrc`
+
+**L'APK ne s'installe pas**
+→ Active "Sources inconnues" dans les paramètres Android
+
+---
+
+MIT License
