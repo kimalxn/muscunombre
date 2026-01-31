@@ -1,19 +1,19 @@
 package com.bodyland.muscunombre
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -39,16 +40,21 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bodyland.muscunombre.data.GymSession
 import com.bodyland.muscunombre.data.ACTIVITIES
+import com.bodyland.muscunombre.data.GYMLIB_ACTIVITIES
+import com.bodyland.muscunombre.data.SALLE_ACTIVITIES
+import com.bodyland.muscunombre.data.EQUIPEMENT_ACTIVITIES
+import com.bodyland.muscunombre.data.FREE_ACTIVITIES
+import com.bodyland.muscunombre.data.getActivityEmoji
 import com.bodyland.muscunombre.TIERS
 import com.bodyland.muscunombre.getTierForSessions
 import com.bodyland.muscunombre.getProgressInTier
 import com.bodyland.muscunombre.ui.theme.MuscuNombreTheme
+import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
-import java.time.format.TextStyle
-import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
@@ -90,20 +96,15 @@ fun OnboardingScreen(viewModel: GymViewModel) {
     var startDate by remember { mutableStateOf(LocalDate.now()) }
     var showStartDatePicker by remember { mutableStateOf(false) }
     
-    // Date de fin calculée automatiquement
     val endDate = startDate.plusDays(365)
+    val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
     
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        "🐀 Gym Rat",
-                        fontWeight = FontWeight.Bold
-                    )
-                },
+                title = { Text("🐀 Vieux Rongeur", fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    containerColor = Color(0xFF6B7280)
                 )
             )
         }
@@ -116,70 +117,43 @@ fun OnboardingScreen(viewModel: GymViewModel) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                "👋 Bienvenue !",
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold
-            )
-            
+            Text("👋 Bienvenue !", fontSize = 32.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(16.dp))
-            
             Text(
                 "Choisis ta date de début d'abonnement pour commencer à tracker tes séances (365 jours).",
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center
             )
-            
             Spacer(modifier = Modifier.height(32.dp))
             
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            Card(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        "📅 Période d'abonnement (365 jours)",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    
+                    Text("📅 Période d'abonnement", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(20.dp))
-                    
                     OutlinedButton(
                         onClick = { showStartDatePicker = true },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Date de début: ${startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))}")
+                        Text("Date de début: " + startDate.format(dateFormatter))
                     }
-                    
                     Spacer(modifier = Modifier.height(12.dp))
-                    
                     Text(
-                        "Date de fin: ${endDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))}",
+                        "Date de fin: " + endDate.format(dateFormatter),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    
                     Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text(
-                        "Durée: 365 jours",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("Durée: 365 jours", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                 }
             }
             
             Spacer(modifier = Modifier.height(32.dp))
-            
             Button(
                 onClick = { viewModel.completeOnboarding(startDate) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
+                modifier = Modifier.fillMaxWidth().height(56.dp)
             ) {
                 Text("🚀 Commencer !", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
@@ -189,10 +163,7 @@ fun OnboardingScreen(viewModel: GymViewModel) {
     if (showStartDatePicker) {
         DatePickerDialog(
             currentDate = startDate,
-            onDateSelected = { date ->
-                startDate = date
-                showStartDatePicker = false
-            },
+            onDateSelected = { startDate = it; showStartDatePicker = false },
             onDismiss = { showStartDatePicker = false }
         )
     }
@@ -203,26 +174,30 @@ fun OnboardingScreen(viewModel: GymViewModel) {
 fun MainAppContent(viewModel: GymViewModel) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabs = listOf("Suivi", "Calendrier", "Utilisateur", "Réglages")
+    
+    // Récupérer le tier courant pour le header dynamique
+    val sessionCount by viewModel.sessionCount.collectAsState()
+    val currentTier = getTierForSessions(sessionCount)
+    val tierColor = Color(currentTier.colorHex)
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = {
+                title = { 
                     Text(
-                        "🐀 Gym Rat",
-                        fontWeight = FontWeight.Bold
-                    )
+                        currentTier.emoji + " " + currentTier.name, 
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    ) 
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    containerColor = tierColor
                 )
             )
         }
     ) { paddingValues ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
+            modifier = Modifier.fillMaxSize().padding(paddingValues)
         ) {
             TabRow(selectedTabIndex = selectedTabIndex) {
                 tabs.forEachIndexed { index, title ->
@@ -252,26 +227,44 @@ fun MainAppContent(viewModel: GymViewModel) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SessionTrackingTab(viewModel: GymViewModel) {
     val sessionCount by viewModel.sessionCount.collectAsState()
+    val gymlibPrice by viewModel.gymlibPrice.collectAsState()
+    val runningPrice by viewModel.runningPrice.collectAsState()
+    val workoutPrice by viewModel.workoutPrice.collectAsState()
     val subscriptionPrice by viewModel.subscriptionPrice.collectAsState()
     val startDate by viewModel.startDate.collectAsState()
     val endDate by viewModel.endDate.collectAsState()
     val allSessions by viewModel.allSessions.collectAsState()
     
-    var selectedActivity by remember { mutableStateOf(ACTIVITIES[0]) }
-    var activityExpanded by remember { mutableStateOf(false) }
-    
-    val pricePerSession = if (sessionCount > 0) subscriptionPrice / sessionCount else 0.0
-    val daysRemaining = if (endDate != null) ChronoUnit.DAYS.between(LocalDate.now(), endDate).toInt().coerceAtLeast(0) else 0
-    val totalDays = if (startDate != null && endDate != null) ChronoUnit.DAYS.between(startDate, endDate).toInt() else 0
-    val daysPassed = if (startDate != null) ChronoUnit.DAYS.between(startDate, LocalDate.now()).toInt().coerceAtLeast(0) else 0
-    
-    // Vérifier si aujourd'hui est déjà pointé
+    val scope = rememberCoroutineScope()
     val today = LocalDate.now()
-    val todayAlreadyLogged = allSessions.any { it.date == today }
+    val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    
+    var selectedActivities by remember { mutableStateOf(setOf<String>()) }
+    
+    val todayActivities = allSessions.filter { it.date == today }.map { it.activity }.toSet()
+    
+    val daysRemaining = endDate?.let { java.time.temporal.ChronoUnit.DAYS.between(today, it).toInt().coerceAtLeast(0) } ?: 0
+    val totalDays = if (startDate != null && endDate != null) java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate).toInt() else 0
+    val daysPassed = startDate?.let { java.time.temporal.ChronoUnit.DAYS.between(it, today).toInt().coerceAtLeast(0) } ?: 0
+    
+    // Compter les séances par catégorie (exclure "Autres")
+    val gymlibCount = allSessions.count { GYMLIB_ACTIVITIES.contains(it.activity) }
+    val salleCount = allSessions.count { SALLE_ACTIVITIES.contains(it.activity) }
+    val equipementCount = allSessions.count { EQUIPEMENT_ACTIVITIES.contains(it.activity) }
+    
+    // Prix par séance par catégorie (seulement si prix > 0)
+    val gymlibPricePerSession = if (gymlibPrice > 0 && gymlibCount > 0) gymlibPrice / gymlibCount else 0.0
+    val sallePricePerSession = if (workoutPrice > 0 && salleCount > 0) workoutPrice / salleCount else 0.0
+    val equipementPricePerSession = if (runningPrice > 0 && equipementCount > 0) runningPrice / equipementCount else 0.0
+    
+    // Séances payantes = uniquement les catégories avec prix > 0
+    val paidSessionCount = (if (gymlibPrice > 0) gymlibCount else 0) + 
+                           (if (workoutPrice > 0) salleCount else 0) + 
+                           (if (runningPrice > 0) equipementCount else 0)
+    val globalPricePerSession = if (paidSessionCount > 0 && subscriptionPrice > 0) subscriptionPrice / paidSessionCount else 0.0
     
     Column(
         modifier = Modifier
@@ -281,25 +274,15 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // Période de suivi
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            )
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    "📅 Période de suivi",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+            Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("📅 Période de suivi", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "${startDate?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) ?: "--"} → ${endDate?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) ?: "--"}",
+                    (startDate?.format(dateFormatter) ?: "--") + " → " + (endDate?.format(dateFormatter) ?: "--"),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
@@ -310,246 +293,217 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
             }
         }
         
-        // Compteur de séances
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    "Total séances",
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    "$sessionCount",
-                    fontSize = 72.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Text("Total séances", style = MaterialTheme.typography.titleMedium)
+                Text("$sessionCount", fontSize = 72.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             }
         }
         
-        // Sélecteur d'activité
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("🏃 Pointer des activités", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                ACTIVITIES.forEach { activity ->
+                    val alreadyLogged = todayActivities.contains(activity)
+                    val isSelected = selectedActivities.contains(activity)
+                    val isFree = FREE_ACTIVITIES.contains(activity)
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (alreadyLogged) Color(0xFF059669).copy(alpha = 0.1f)
+                                else if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                else Color.Transparent
+                            )
+                            .clickable(enabled = !alreadyLogged) {
+                                selectedActivities = if (isSelected) selectedActivities - activity else selectedActivities + activity
+                            }
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = isSelected || alreadyLogged,
+                            onCheckedChange = { checked ->
+                                if (!alreadyLogged) {
+                                    selectedActivities = if (checked) selectedActivities + activity else selectedActivities - activity
+                                }
+                            },
+                            enabled = !alreadyLogged
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(getActivityEmoji(activity) + " " + activity, style = MaterialTheme.typography.bodyMedium)
+                        Spacer(modifier = Modifier.weight(1f))
+                        if (alreadyLogged) {
+                            Text("✅", fontSize = 16.sp)
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                val buttonText = if (selectedActivities.isEmpty()) "Sélectionne des activités" 
+                    else "✅ Pointer " + selectedActivities.size + " activité(s)"
+                
+                Button(
+                    onClick = {
+                        scope.launch {
+                            selectedActivities.forEach { activity ->
+                                viewModel.addTodaySession(activity)
+                            }
+                            selectedActivities = emptySet()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    enabled = selectedActivities.isNotEmpty(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(buttonText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        
+        // Prix par séance GLOBAL
         Card(
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
         ) {
             Column(
-                modifier = Modifier.padding(16.dp)
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    "🏃 Activité",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
+                Text("💰 Coût par séance (global)", style = MaterialTheme.typography.titleMedium)
                 Spacer(modifier = Modifier.height(8.dp))
-                ExposedDropdownMenuBox(
-                    expanded = activityExpanded,
-                    onExpandedChange = { activityExpanded = !activityExpanded }
-                ) {
-                    OutlinedTextField(
-                        value = selectedActivity,
-                        onValueChange = {},
-                        readOnly = true,
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = activityExpanded) },
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = activityExpanded,
-                        onDismissRequest = { activityExpanded = false }
-                    ) {
-                        ACTIVITIES.forEach { activity ->
-                            DropdownMenuItem(
-                                text = { Text(activity) },
-                                onClick = {
-                                    selectedActivity = activity
-                                    activityExpanded = false
-                                }
-                            )
-                        }
+                if (paidSessionCount > 0) {
+                    Text("%.2f €".format(globalPricePerSession), fontSize = 48.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
+                    Text("(" + subscriptionPrice.toInt() + "€ ÷ " + paidSessionCount + " séances payantes)", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
+                } else {
+                    Text("-- €", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
+                    Text("Commence à t'entraîner !", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+        
+        // Prix par catégorie
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("💳 Coût par séance (par catégorie)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Gymlib
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column {
+                        Text("🚴💪🥊 Gymlib", fontWeight = FontWeight.Bold)
+                        Text("$gymlibCount séances", style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (gymlibPrice > 0 && gymlibCount > 0) {
+                        Text("%.2f €".format(gymlibPricePerSession), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    } else {
+                        Text("-- €", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                
+                // Salle
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column {
+                        Text("🏋️ Salle (Workout)", fontWeight = FontWeight.Bold)
+                        Text("$salleCount séances", style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (workoutPrice > 0 && salleCount > 0) {
+                        Text("%.2f €".format(sallePricePerSession), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    } else {
+                        Text("-- €", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                
+                // Équipement Running
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column {
+                        Text("👟 Équipement Running", fontWeight = FontWeight.Bold)
+                        Text("$equipementCount séances", style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (runningPrice > 0 && equipementCount > 0) {
+                        Text("%.2f €".format(equipementPricePerSession), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    } else {
+                        Text("-- €", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
         }
         
-        // Bouton principal
-        Button(
-            onClick = { viewModel.addTodaySession(selectedActivity) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (todayAlreadyLogged) Color(0xFF9E9E9E) else Color(0xFF4CAF50)
-            ),
-            enabled = !todayAlreadyLogged
-        ) {
-            Text(
-                if (todayAlreadyLogged) "✅ Déjà pointé aujourd'hui !" else "✅ Pointer : $selectedActivity",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        
-        // Prix par séance
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer
-            )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    "💰 Coût par séance",
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                if (sessionCount > 0) {
-                    Text(
-                        "%.2f €".format(pricePerSession),
-                        fontSize = 48.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
-                    Text(
-                        "(${subscriptionPrice.toInt()}€ ÷ $sessionCount séances)",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
-                    )
-                } else {
-                    Text(
-                        "-- €",
-                        fontSize = 48.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
-                    Text(
-                        "Commence à t'entraîner !",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
-        }
-        
-        // Barre de progression Gamification
         val currentTier = getTierForSessions(sessionCount)
         val progress = getProgressInTier(sessionCount, currentTier)
         
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
+            colors = CardDefaults.cardColors(containerColor = Color(currentTier.colorHex).copy(alpha = 0.2f))
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    "${currentTier.emoji} Tier ${currentTier.tier}: ${currentTier.name}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+            Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(currentTier.emoji + " Tier " + currentTier.tier + ": " + currentTier.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
                 LinearProgressIndicator(
                     progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(12.dp)
-                        .clip(RoundedCornerShape(6.dp)),
-                    color = Color(0xFF4CAF50),
+                    modifier = Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(4.dp)),
+                    color = Color(currentTier.colorHex),
                     trackColor = MaterialTheme.colorScheme.surfaceVariant,
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                if (currentTier.tier < 6) {
+                if (currentTier.tier < 7) {
                     val nextTier = TIERS[currentTier.tier]
-                    Text(
-                        "${currentTier.maxSessions - sessionCount + 1} séances pour Tier ${nextTier.tier}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    val sessionsLeft = currentTier.maxSessions - sessionCount + 1
+                    Text("$sessionsLeft séances pour Tier " + nextTier.tier, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
-                    Text(
-                        "Tu as atteint le niveau maximum ! 🏆",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFFFD700)
-                    )
+                    Text("Tu as atteint le niveau maximum ! 🏆", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFFD700))
                 }
             }
         }
         
-        // Total activités par type pendant la période
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            )
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    "🏃 Activités pendant la période",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("📊 Activités enregistrées", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                // Compter les activités par type
                 val activityCounts = allSessions.groupingBy { it.activity }.eachCount()
                 
                 if (activityCounts.isEmpty()) {
-                    Text(
-                        "Aucune séance enregistrée",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
-                    )
+                    Text("Aucune séance enregistrée", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f))
                 } else {
                     ACTIVITIES.forEach { activity ->
                         val count = activityCounts[activity] ?: 0
                         if (count > 0) {
+                            val suffix = if (count > 1) "s" else ""
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(activity, style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    "$count séance${if (count > 1) "s" else ""}",
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                                Text(getActivityEmoji(activity) + " " + activity, style = MaterialTheme.typography.bodyMedium)
+                                Text("$count séance$suffix", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
                 }
             }
         }
-        
-        // Bouton de réinitialisation
-        OutlinedButton(
-            onClick = { viewModel.resetSessions() },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("🔄 Réinitialiser le compteur")
-        }
     }
 }
-
-// ============== USER TAB (GAMIFICATION) ==============
 
 @Composable
 fun UserTab(viewModel: GymViewModel) {
@@ -558,171 +512,121 @@ fun UserTab(viewModel: GymViewModel) {
     val progress = getProgressInTier(sessionCount, currentTier)
     
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
-            .verticalScroll(rememberScrollState()),
+        modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Profil actuel
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
+            colors = CardDefaults.cardColors(containerColor = Color(currentTier.colorHex).copy(alpha = 0.3f))
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    currentTier.emoji,
-                    fontSize = 64.sp
-                )
+                Text(currentTier.emoji, fontSize = 64.sp)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "Tier ${currentTier.tier}",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                )
-                Text(
-                    currentTier.name,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                Text("Tier " + currentTier.tier, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                Text(currentTier.name, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    currentTier.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center
-                )
+                Text(currentTier.description, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    "$sessionCount séances",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text("$sessionCount séances", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
         }
         
-        // Progression vers le prochain tier
-        if (currentTier.tier < 6) {
+        if (currentTier.tier < 7) {
             val nextTier = TIERS[currentTier.tier]
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Progression vers Tier ${nextTier.tier}",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "${nextTier.emoji} ${nextTier.name}",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Progression vers Tier " + nextTier.tier, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Text(nextTier.emoji + " " + nextTier.name, style = MaterialTheme.typography.bodyMedium)
                     }
                     Spacer(modifier = Modifier.height(12.dp))
-                    LinearProgressIndicator(
-                        progress = { progress },
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(16.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                        color = Color(0xFF4CAF50),
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                    )
+                            .height(20.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFBDBDBD))
+                            .border(2.dp, Color(0xFF757575), RoundedCornerShape(10.dp))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(progress)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(currentTier.colorHex))
+                        )
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "${sessionCount - currentTier.minSessions + 1} / ${currentTier.maxSessions - currentTier.minSessions + 1} séances",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        "Encore ${currentTier.maxSessions - sessionCount + 1} séances !",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    val currentProgress = sessionCount - currentTier.minSessions + 1
+                    val tierRange = currentTier.maxSessions - currentTier.minSessions + 1
+                    Text("$currentProgress / $tierRange séances", style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                    val remaining = currentTier.maxSessions - sessionCount + 1
+                    Text("Encore $remaining séances !", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
         
-        // Liste des tiers
-        Text(
-            "🏆 Tous les Tiers",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 8.dp)
-        )
+        Text("🏆 Tous les Tiers", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
         
         TIERS.forEach { tier ->
             val isCurrentTier = tier.tier == currentTier.tier
             val isUnlocked = sessionCount >= tier.minSessions
             
+            // Couleur du tier (grisée si non débloqué)
+            val tierColor = Color(tier.colorHex)
+            val cardColor = when {
+                isCurrentTier -> tierColor.copy(alpha = 0.3f)
+                isUnlocked -> tierColor.copy(alpha = 0.2f)
+                else -> tierColor.copy(alpha = 0.08f) // Grisé mais visible
+            }
+            
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = when {
-                        isCurrentTier -> MaterialTheme.colorScheme.primaryContainer
-                        isUnlocked -> MaterialTheme.colorScheme.secondaryContainer
-                        else -> MaterialTheme.colorScheme.surfaceVariant
-                    }
-                )
+                colors = CardDefaults.cardColors(containerColor = cardColor)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        tier.emoji,
-                        fontSize = 32.sp,
-                        modifier = Modifier.padding(end = 16.dp)
+                        tier.emoji, 
+                        fontSize = 32.sp, 
+                        modifier = Modifier.padding(end = 16.dp),
+                        color = if (!isUnlocked) Color.Gray else Color.Unspecified
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                "Tier ${tier.tier}: ${tier.name}",
-                                fontWeight = FontWeight.Bold,
-                                color = if (!isUnlocked) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                        else MaterialTheme.colorScheme.onSurface
+                                "Tier " + tier.tier + ": " + tier.name, 
+                                fontWeight = FontWeight.Bold, 
+                                color = if (!isUnlocked) tierColor.copy(alpha = 0.5f) else tierColor
                             )
                             if (isCurrentTier) {
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    "← TOI",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                                Text("← TOI", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = tierColor)
                             }
                         }
-                        Text(
-                            if (tier.tier == 6) "${tier.minSessions}+ séances"
-                            else "${tier.minSessions}-${tier.maxSessions} séances",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (!isUnlocked) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        val rangeText = if (tier.tier == 7) tier.minSessions.toString() + "+ séances" else tier.minSessions.toString() + "-" + tier.maxSessions + " séances"
+                        Text(rangeText, style = MaterialTheme.typography.bodySmall, color = if (!isUnlocked) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurfaceVariant)
+                        
+                        // Séances par mois et par semaine - seulement pour Tier 3+
+                        if (tier.tier >= 3) {
+                            val (monthText, weekText) = when (tier.tier) {
+                                3 -> Pair("≈ 2-4 séances/mois", "≈ 0.5-1 séance/sem")
+                                4 -> Pair("≈ 4-8 séances/mois", "≈ 1-2 séances/sem")
+                                5 -> Pair("≈ 8-15 séances/mois", "≈ 2-3 séances/sem")
+                                6 -> Pair("≈ 15-21 séances/mois", "≈ 3-5 séances/sem")
+                                7 -> Pair("≈ 21+ séances/mois", "≈ 5+ séances/sem")
+                                else -> Pair("", "")
+                            }
+                            val textAlpha = if (!isUnlocked) 0.4f else 0.7f
+                            Text(monthText, style = MaterialTheme.typography.bodySmall, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = textAlpha))
+                            Text(weekText, style = MaterialTheme.typography.bodySmall, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = textAlpha))
+                        }
                     }
                     if (isUnlocked) {
-                        Text("✓", color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
+                        Text("✓", color = Color(0xFF059669), fontWeight = FontWeight.Bold)
                     } else {
                         Text("🔒", fontSize = 20.sp)
                     }
@@ -732,68 +636,54 @@ fun UserTab(viewModel: GymViewModel) {
     }
 }
 
-// ============== CALENDAR TAB ==============
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarTab(viewModel: GymViewModel) {
-    val allSessions by viewModel.allSessions.collectAsState()
+    val sessionsInPeriod by viewModel.sessionsInPeriod.collectAsState()
     val sessionCount by viewModel.sessionCount.collectAsState()
+    val allSessions by viewModel.allSessions.collectAsState()
     
     var currentMonth by remember { mutableStateOf(YearMonth.now()) }
-    var showAddDialog by remember { mutableStateOf(false) }
     var selectedDateForActivity by remember { mutableStateOf<LocalDate?>(null) }
     
-    val sessionDates = allSessions.map { it.date }.toSet()
-    // Map date to activity for display
-    val sessionActivities = allSessions.associate { it.date to it.activity }
+    // Utiliser allSessions pour l'affichage du calendrier (pas limité à la période)
+    val sessionsByDate = allSessions.groupBy { it.date }
     
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        // Stats résumé
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        val today = LocalDate.now()
+        val startOfWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        val endOfWeek = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
+        val thisWeekCount = allSessions.count { it.date in startOfWeek..endOfWeek }
+        val thisMonthCount = allSessions.count { YearMonth.from(it.date) == YearMonth.now() }
+        
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
+            Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("$sessionCount", fontSize = 32.sp, fontWeight = FontWeight.Bold)
-                    Text("séances", style = MaterialTheme.typography.bodySmall)
+                    Text("$sessionCount", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                    Text("total", style = MaterialTheme.typography.bodySmall)
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    val thisMonth = allSessions.count { 
-                        YearMonth.from(it.date) == YearMonth.now() 
-                    }
-                    Text("$thisMonth", fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                    Text("$thisMonthCount", fontSize = 28.sp, fontWeight = FontWeight.Bold)
                     Text("ce mois", style = MaterialTheme.typography.bodySmall)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("$thisWeekCount", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                    Text("cette sem.", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // Navigation mois
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { currentMonth = currentMonth.minusMonths(1) }) {
                 Icon(Icons.Filled.KeyboardArrowLeft, contentDescription = "Mois précédent")
             }
             Text(
-                currentMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.FRENCH))
-                    .replaceFirstChar { it.uppercase() },
+                currentMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.FRENCH)).replaceFirstChar { it.uppercase() },
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -804,39 +694,21 @@ fun CalendarTab(viewModel: GymViewModel) {
         
         Spacer(modifier = Modifier.height(8.dp))
         
-        // Jours de la semaine
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             listOf("L", "M", "M", "J", "V", "S", "D").forEach { day ->
-                Text(
-                    day,
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(day, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         
         Spacer(modifier = Modifier.height(8.dp))
         
-        // Grille du calendrier
         val firstDayOfMonth = currentMonth.atDay(1)
-        val lastDayOfMonth = currentMonth.atEndOfMonth()
-        val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value // 1 = Lundi
+        val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value
         val daysInMonth = currentMonth.lengthOfMonth()
-        
-        // Calculer les jours à afficher (avec padding pour aligner)
         val totalCells = ((firstDayOfWeek - 1) + daysInMonth + 6) / 7 * 7
         val days = (1..totalCells).map { index ->
             val dayOffset = index - firstDayOfWeek
-            if (dayOffset in 0 until daysInMonth) {
-                currentMonth.atDay(dayOffset + 1)
-            } else {
-                null
-            }
+            if (dayOffset in 0 until daysInMonth) currentMonth.atDay(dayOffset + 1) else null
         }
         
         LazyVerticalGrid(
@@ -846,118 +718,103 @@ fun CalendarTab(viewModel: GymViewModel) {
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             items(days) { date ->
+                val sessions = date?.let { sessionsByDate[it] } ?: emptyList()
+                val isGymDay = sessions.isNotEmpty()
+                val isFuture = date?.isAfter(today) == true
+                
                 CalendarDay(
                     date = date,
-                    isGymDay = date?.let { sessionDates.contains(it) } ?: false,
-                    activity = date?.let { sessionActivities[it] },
-                    isToday = date == LocalDate.now(),
+                    isGymDay = isGymDay,
+                    activities = sessions.map { it.activity },
+                    isToday = date == today,
+                    isFuture = isFuture,
                     onClick = { 
-                        date?.let { clickedDate ->
-                            if (sessionDates.contains(clickedDate)) {
-                                // Si déjà pointé, supprimer
-                                viewModel.removeSessionOnDate(clickedDate)
-                            } else {
-                                // Sinon, afficher le dialog pour choisir l'activité
-                                selectedDateForActivity = clickedDate
-                            }
+                        if (date != null && !isFuture) {
+                            selectedDateForActivity = date
                         }
                     }
                 )
             }
         }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Bouton ajouter une date manuellement
-        Button(
-            onClick = { showAddDialog = true },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("➕ Ajouter une date manuellement")
-        }
-        
-        // Légende activités
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text("🏃 Activités:", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    ACTIVITIES.forEach { activity ->
-                        Text(activity, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
-        }
     }
     
-    // Dialog pour ajout manuel avec activité
-    if (showAddDialog) {
-        AddSessionDialog(
-            onDismiss = { showAddDialog = false },
-            onConfirm = { date, activity ->
-                viewModel.addSessionOnDate(date, activity)
-                showAddDialog = false
-            }
-        )
-    }
-    
-    // Dialog pour choisir l'activité sur une date cliquée
     selectedDateForActivity?.let { date ->
-        ActivitySelectionDialog(
+        MultiActivitySelectionDialog(
             date = date,
-            onDismiss = { selectedDateForActivity = null },
-            onActivitySelected = { activity ->
-                viewModel.addSessionOnDate(date, activity)
-                selectedDateForActivity = null
-            }
+            viewModel = viewModel,
+            existingSessions = allSessions.filter { it.date == date },
+            onDismiss = { selectedDateForActivity = null }
         )
     }
 }
 
-// Dialog pour sélectionner une activité
 @Composable
-fun ActivitySelectionDialog(
+fun MultiActivitySelectionDialog(
     date: LocalDate,
-    onDismiss: () -> Unit,
-    onActivitySelected: (String) -> Unit
+    viewModel: GymViewModel,
+    existingSessions: List<GymSession>,
+    onDismiss: () -> Unit
 ) {
+    val existingActivities = existingSessions.map { it.activity }.toSet()
+    var selectedActivities by remember { mutableStateOf(existingActivities) }
+    val scope = rememberCoroutineScope()
+    val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { 
-            Text("📅 ${date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))}")
-        },
+        title = { Text("📅 " + date.format(dateFormatter)) },
         text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    "Choisis ton activité :",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Sélectionne les activités :", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
                 ACTIVITIES.forEach { activity ->
-                    OutlinedButton(
-                        onClick = { onActivitySelected(activity) },
-                        modifier = Modifier.fillMaxWidth()
+                    val isSelected = selectedActivities.contains(activity)
+                    val isFree = FREE_ACTIVITIES.contains(activity)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                            .clickable { selectedActivities = if (isSelected) selectedActivities - activity else selectedActivities + activity }
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(activity)
+                        Checkbox(checked = isSelected, onCheckedChange = { checked -> selectedActivities = if (checked) selectedActivities + activity else selectedActivities - activity })
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(getActivityEmoji(activity) + " " + activity)
+                        if (isFree) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("(gratuit)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
         },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Annuler")
+        confirmButton = {
+            Button(
+                onClick = {
+                    scope.launch {
+                        // Supprimer les activités désélectionnées
+                        existingActivities.forEach { activity ->
+                            if (!selectedActivities.contains(activity)) {
+                                viewModel.removeActivityOnDate(date, activity)
+                            }
+                        }
+                        // Ajouter les nouvelles activités
+                        selectedActivities.forEach { activity ->
+                            if (!existingActivities.contains(activity)) {
+                                viewModel.addSessionOnDate(date, activity)
+                            }
+                        }
+                        onDismiss()
+                    }
+                }
+            ) {
+                Text("Enregistrer")
             }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Annuler") }
         }
     )
 }
@@ -966,12 +823,13 @@ fun ActivitySelectionDialog(
 fun CalendarDay(
     date: LocalDate?,
     isGymDay: Boolean,
-    activity: String?,
+    activities: List<String>,
     isToday: Boolean,
+    isFuture: Boolean,
     onClick: () -> Unit
 ) {
     val backgroundColor = when {
-        isGymDay -> Color(0xFF4CAF50) // Vert pour jour pointé
+        isGymDay -> Color(0xFF2563EB)
         isToday -> MaterialTheme.colorScheme.primaryContainer
         else -> Color.Transparent
     }
@@ -979,6 +837,7 @@ fun CalendarDay(
     val textColor = when {
         isGymDay -> Color.White
         isToday -> MaterialTheme.colorScheme.onPrimaryContainer
+        isFuture -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
         date == null -> Color.Transparent
         else -> MaterialTheme.colorScheme.onSurface
     }
@@ -986,255 +845,316 @@ fun CalendarDay(
     Box(
         modifier = Modifier
             .aspectRatio(1f)
-            .clip(CircleShape)
+            .clip(RoundedCornerShape(6.dp))
             .background(backgroundColor)
-            .then(
-                if (isToday && !isGymDay) {
-                    Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                } else Modifier
-            )
-            .clickable(enabled = date != null) { onClick() },
+            .then(if (isToday && !isGymDay) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp)) else Modifier)
+            .clickable(enabled = date != null && !isFuture) { onClick() },
         contentAlignment = Alignment.Center
     ) {
         if (date != null) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = date.dayOfMonth.toString(),
-                    color = textColor,
-                    fontWeight = if (isGymDay || isToday) FontWeight.Bold else FontWeight.Normal,
-                    fontSize = 14.sp
-                )
-                if (isGymDay) {
-                    Text("💪", fontSize = 8.sp)
+                Text(date.dayOfMonth.toString(), color = textColor, fontWeight = if (isGymDay || isToday) FontWeight.Bold else FontWeight.Normal, fontSize = 14.sp)
+                if (isGymDay && activities.isNotEmpty()) {
+                    val displayEmoji = if (activities.size > 1) "🏆" else getActivityEmoji(activities.first())
+                    Text(displayEmoji, fontSize = 10.sp)
                 }
             }
         }
     }
 }
-
-// ============== ADD SESSION DIALOG ==============
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AddSessionDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (LocalDate, String) -> Unit
-) {
-    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
-    var selectedActivity by remember { mutableStateOf(ACTIVITIES[0]) }
-    var activityExpanded by remember { mutableStateOf(false) }
-    var showDatePicker by remember { mutableStateOf(false) }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("➕ Ajouter une séance") },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Sélecteur de date
-                OutlinedButton(
-                    onClick = { showDatePicker = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("📅 ${selectedDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))}")
-                }
-                
-                // Sélecteur d'activité
-                ExposedDropdownMenuBox(
-                    expanded = activityExpanded,
-                    onExpandedChange = { activityExpanded = !activityExpanded }
-                ) {
-                    OutlinedTextField(
-                        value = selectedActivity,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Activité") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = activityExpanded) },
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = activityExpanded,
-                        onDismissRequest = { activityExpanded = false }
-                    ) {
-                        ACTIVITIES.forEach { activity ->
-                            DropdownMenuItem(
-                                text = { Text(activity) },
-                                onClick = {
-                                    selectedActivity = activity
-                                    activityExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(selectedDate, selectedActivity) }) {
-                Text("Ajouter")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Annuler")
-            }
-        }
-    )
-    
-    if (showDatePicker) {
-        DatePickerDialog(
-            currentDate = selectedDate,
-            onDateSelected = { date ->
-                selectedDate = date
-                showDatePicker = false
-            },
-            onDismiss = { showDatePicker = false }
-        )
-    }
-}
-
-// ============== SETTINGS TAB ==============
 
 @Composable
 fun SettingsTab(viewModel: GymViewModel) {
+    val gymlibPrice by viewModel.gymlibPrice.collectAsState()
+    val runningPrice by viewModel.runningPrice.collectAsState()
+    val workoutPrice by viewModel.workoutPrice.collectAsState()
     val subscriptionPrice by viewModel.subscriptionPrice.collectAsState()
     val startDate by viewModel.startDate.collectAsState()
     val endDate by viewModel.endDate.collectAsState()
     
-    var priceText by remember(subscriptionPrice) { 
-        mutableStateOf(if (subscriptionPrice > 0) subscriptionPrice.toInt().toString() else "") 
-    }
+    var gymlibText by remember(gymlibPrice) { mutableStateOf(if (gymlibPrice > 0) gymlibPrice.toInt().toString() else "") }
+    var runningText by remember(runningPrice) { mutableStateOf(if (runningPrice > 0) runningPrice.toInt().toString() else "") }
+    var workoutText by remember(workoutPrice) { mutableStateOf(if (workoutPrice > 0) workoutPrice.toInt().toString() else "") }
     var showStartDatePicker by remember { mutableStateOf(false) }
+    var showResetDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
+    
+    val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
     
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        // Prix de l'abonnement
-        Card(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp)
-            ) {
-                Text(
-                    "💳 Prix de l'abonnement annuel",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text("💳 Prix des abonnements", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(16.dp))
+                
+                // Gymlib
+                Text("🚴💪🥊 Gymlib (Dynamo, Circuit Training, Cardio Boxing)", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
                 OutlinedTextField(
-                    value = priceText,
+                    value = gymlibText,
                     onValueChange = { newValue ->
                         if (newValue.isEmpty() || newValue.all { it.isDigit() }) {
-                            priceText = newValue
-                            val price = newValue.toDoubleOrNull() ?: 0.0
-                            viewModel.updateSubscriptionPrice(price)
+                            gymlibText = newValue
+                            viewModel.updateGymlibPrice(newValue.toDoubleOrNull() ?: 0.0)
                         }
                     },
-                    label = { Text("Prix en euros (€)") },
-                    placeholder = { Text("Ex: 400") },
+                    placeholder = { Text("") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     suffix = { Text("€") }
                 )
-                if (subscriptionPrice > 0) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Abonnement actuel: ${subscriptionPrice.toInt()}€/an",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                if (gymlibPrice > 0) {
+                    Text("Sous-total: " + gymlibPrice.toInt() + "€", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                 }
-            }
-        }
-        
-        // Période de suivi
-        Card(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp)
-            ) {
-                Text(
-                    "📅 Période de suivi (365 jours)",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Date de début (éditable)
-                OutlinedButton(
-                    onClick = { showStartDatePicker = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Date de début: ${startDate?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) ?: "--"}")
+                // Salle (Workout)
+                Text("🏋️ Salle (Workout)", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = workoutText,
+                    onValueChange = { newValue ->
+                        if (newValue.isEmpty() || newValue.all { it.isDigit() }) {
+                            workoutText = newValue
+                            viewModel.updateWorkoutPrice(newValue.toDoubleOrNull() ?: 0.0)
+                        }
+                    },
+                    placeholder = { Text("") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    suffix = { Text("€") }
+                )
+                if (workoutPrice > 0) {
+                    Text("Sous-total: " + workoutPrice.toInt() + "€", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                 }
                 
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Équipement Running
+                Text("👟 Équipement Running (chaussures, etc.)", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = runningText,
+                    onValueChange = { newValue ->
+                        if (newValue.isEmpty() || newValue.all { it.isDigit() }) {
+                            runningText = newValue
+                            viewModel.updateRunningPrice(newValue.toDoubleOrNull() ?: 0.0)
+                        }
+                    },
+                    placeholder = { Text("") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    suffix = { Text("€") }
+                )
+                if (runningPrice > 0) {
+                    Text("Sous-total: " + runningPrice.toInt() + "€", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                // Date de fin (calculée automatiquement)
-                Text(
-                    "Date de fin: ${endDate?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) ?: "--"}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Text(
-                    "Durée: 365 jours (automatique)",
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("TOTAL ANNUEL:", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text(subscriptionPrice.toInt().toString() + "€", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                }
             }
         }
         
-        // Info
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text("📅 Période de suivi (365 jours)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedButton(onClick = { showStartDatePicker = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Date de début: " + (startDate?.format(dateFormatter) ?: "--"))
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("Date de fin: " + (endDate?.format(dateFormatter) ?: "--"), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Durée: 365 jours (automatique)", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primary)
+            }
+        }
+        
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    "ℹ️ Comment ça marche ?",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("ℹ️ Comment ça marche ?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "1. Renseigne le prix de ton abonnement annuel\n" +
+                    "1. Renseigne tes prix par catégorie :\n" +
+                    "   • Gymlib = Dynamo + Circuit Training + Cardio Boxing\n" +
+                    "   • Salle = Workout (abonnement gym)\n" +
+                    "   • Équipement = Running (chaussures, etc.)\n" +
                     "2. Définis ta date de début (fin = +365 jours)\n" +
-                    "3. Clique sur le bouton à chaque visite à la salle\n" +
-                    "4. Le coût par séance se calcule automatiquement !",
+                    "3. Pointe tes activités dans 'Suivi' ou 'Calendrier'\n" +
+                    "4. L'activité 'Autres' est gratuite (non comptabilisée)\n" +
+                    "5. Le coût par séance est calculé par catégorie et globalement",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
         }
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        // À propos
+        Card(
+            modifier = Modifier.fillMaxWidth().clickable { showAboutDialog = true },
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("ℹ️", fontSize = 24.sp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text("À propos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+                Text("→", fontSize = 20.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f))
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFDC2626).copy(alpha = 0.1f))
+        ) {
+            Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Button(
+                    onClick = { showResetDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("🗑️ Réinitialiser toutes les données", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
     
-    // Date Picker pour la date de début
+    if (showResetDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetDialog = false },
+            title = { Text("⚠️ Confirmation", fontWeight = FontWeight.Bold, color = Color(0xFFDC2626)) },
+            text = {
+                Text("Es-vous sûr de vouloir tout supprimer ?\n\nCette action est irréversible et vous allez perdre :\n• Toutes vos séances enregistrées\n• Votre historique complet\n• Votre progression de tier\n• Tous vos prix d'abonnements", style = MaterialTheme.typography.bodyMedium)
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.resetAllData(); showResetDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
+                ) { Text("OUI, supprimer") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showResetDialog = false }) { Text("NON, annuler") }
+            }
+        )
+    }
+    
+    if (showAboutDialog) {
+        val context = LocalContext.current
+        AlertDialog(
+            onDismissRequest = { showAboutDialog = false },
+            title = { 
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Image(
+                        painter = painterResource(id = R.mipmap.ic_launcher),
+                        contentDescription = "Logo Muscunombre",
+                        modifier = Modifier.size(80.dp).clip(RoundedCornerShape(16.dp))
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Muscunombre", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = Color(0xFF2E7D32))
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Version 1.0.0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    
+                    HorizontalDivider()
+                    
+                    Text("🎯 Track tes séances de sport et optimise ton budget fitness !", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+                    
+                    HorizontalDivider()
+                    
+                    Text("👨‍💻 Réalisé avec ❤️ par", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Jade Senterre", fontWeight = FontWeight.Medium)
+                        Text(
+                            "senterrejade@gmail.com", 
+                            style = MaterialTheme.typography.bodySmall, 
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable {
+                                val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                    data = Uri.parse("mailto:senterrejade@gmail.com")
+                                }
+                                context.startActivity(intent)
+                            }
+                        )
+                    }
+                    
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Alexandre Kim", fontWeight = FontWeight.Medium)
+                        Text(
+                            "kim.alxn@gmail.com", 
+                            style = MaterialTheme.typography.bodySmall, 
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable {
+                                val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                    data = Uri.parse("mailto:kim.alxn@gmail.com")
+                                }
+                                context.startActivity(intent)
+                            }
+                        )
+                    }
+                    
+                    HorizontalDivider()
+                    
+                    Text("🔗 Code source", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text(
+                        "github.com/kimalxn/muscunombre", 
+                        style = MaterialTheme.typography.bodySmall, 
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/kimalxn/muscunombre"))
+                            context.startActivity(intent)
+                        }
+                    )
+                    
+                    HorizontalDivider()
+                    
+                    Text("🛠️ Technologies", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text("Kotlin • Jetpack Compose • Room • Material 3", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Made in Paris 🇫🇷 • 2026", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showAboutDialog = false }) { Text("Fermer") }
+            }
+        )
+    }
+    
     if (showStartDatePicker) {
         DatePickerDialog(
             currentDate = startDate ?: LocalDate.now(),
-            onDateSelected = { date ->
-                viewModel.updateStartDateWithAutoEnd(date)
-                showStartDatePicker = false
-            },
+            onDateSelected = { viewModel.updateStartDateWithAutoEnd(it); showStartDatePicker = false },
             onDismiss = { showStartDatePicker = false }
         )
     }
@@ -1261,14 +1181,10 @@ fun DatePickerDialog(
                         onDateSelected(selectedDate)
                     }
                 }
-            ) {
-                Text("OK")
-            }
+            ) { Text("OK") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Annuler")
-            }
+            TextButton(onClick = onDismiss) { Text("Annuler") }
         }
     ) {
         DatePicker(state = datePickerState)
