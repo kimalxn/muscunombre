@@ -30,21 +30,19 @@ L'application "Muscunombre" apparaît sur ton écran d'accueil.
 
 ## 🎮 Fonctionnalités
 
-- **📊 Suivi** : Pointe tes activités quotidiennes
-- **📅 Calendrier** : Visualise toutes tes séances du mois
-- **👤 Utilisateur** : Suis ta progression et tes tiers
-- **⚙️ Réglages** : Configure tes prix d'abonnement
+- **Suivi** : Pointe tes activités quotidiennes, vois le coût par séance
+- **Calendrier** : Visualise toutes tes séances du mois
+- **Profil** : Suis ta progression et tes tiers de gamification
+- **Réglages** : Configure tes activités, prix, exporte/importe tes données
 
-### Activités disponibles
-- 🚴 **Dynamo** (Gymlib)
-- 💪 **Circuit Training** (Gymlib)
-- 🥊 **Cardio Boxing** (Gymlib)
-- 🏋️ **Workout** (Salle)
-- 🏃 **Running** (Équipement)
-- 🎯 **Autres** (Gratuit)
+### Activités personnalisables
+L'app vient avec 6 activités par défaut (Dynamo, Circuit Training, Cardio Boxing, Workout, Running, Autres) mais tu peux **ajouter, modifier et supprimer** tes propres activités avec un tag, un nom et un prix annuel.
 
 ### 💰 Calcul du coût par séance
-L'app calcule automatiquement combien te coûte chaque séance en fonction de ton abonnement !
+L'app calcule automatiquement combien te coûte chaque séance — globalement et par activité — en fonction de tes prix d'abonnement.
+
+### 📦 Export / Import
+Sauvegarde et restaure toutes tes données (séances + config) en JSON. Format v2 avec timelog.
 
 ---
 
