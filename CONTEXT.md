@@ -29,9 +29,11 @@
 
 ### Structure des données
 - **`GymSession`** (Room) : `id`, `date: LocalDate`, `activity: String`
-- **DataStore keys** : `gymlib_price`, `workout_price`, `running_price`, `start_date`, `end_date`, `onboarding_completed`
-- **6 activités** : Dynamo 🚴, Circuit Training 💪, Cardio Boxing 🥊, Workout 🏋️, Running 👟, Autres ➕
-- **3 catégories de prix** : Gymlib (Dynamo+CT+Boxing), Salle (Workout), Équipement (Running). "Autres" = gratuit.
+- **`ActivityDefinition`** (data class) : `name: String`, `emoji: String`, `price: Double = 0.0`
+- **DataStore keys** : `activities_json` (JSON array of ActivityDefinition), `start_date`, `end_date`, `onboarding_completed`
+- **Legacy DataStore keys** (migration only) : `gymlib_price`, `workout_price`, `running_price`
+- **6 activités par défaut** : Dynamo 🚴, Circuit Training 💪, Cardio Boxing 🥊, Workout 🏋️, Running 👟, Autres ➕
+- **Activités dynamiques** : l'utilisateur peut ajouter, modifier et supprimer ses propres activités avec emoji et prix individuel
 - **7 tiers de gamification** : Vieux Rongeur → Mini Mouse → Knight Mouse → King Rat → Oonga Bouna → Meep Meep → Légende
 
 ---
@@ -39,9 +41,10 @@
 ## ✅ Ce qui a été fait (session du 27/02/2026)
 
 ### 1. Export/Import JSON des données
-- **Export** : bouton dans Réglages → génère un fichier JSON via `ActivityResultContracts.CreateDocument` contenant toutes les sessions + la config (prix, dates)
+- **Export** : bouton dans Réglages → génère un fichier JSON via `ActivityResultContracts.CreateDocument` contenant toutes les sessions + la config
 - **Import** : bouton dans Réglages → ouvre un fichier JSON via `ActivityResultContracts.OpenDocument`, dialogue de confirmation, puis reset + réimport des données
-- Format JSON : `{ version, exportDate, config: { gymlibPrice, workoutPrice, runningPrice, startDate, endDate }, sessions: [{ date, activity }] }`
+- Format JSON **v2** : `{ version: 2, exportDate, config: { activities: [{ name, emoji, price }], startDate, endDate }, sessions: [{ date, activity }] }`
+- Rétro-compatible : import v1 (legacy 3 prix) automatiquement converti en v2
 - Utilise `org.json` (natif Android, zéro dépendance ajoutée)
 
 ### 2. Navigation par swipe entre onglets
@@ -51,8 +54,21 @@
 - Import : `androidx.compose.foundation.pager.HorizontalPager` + `rememberPagerState`
 - Nécessite `@OptIn(ExperimentalFoundationApi::class)`
 
+### 3. Activités dynamiques avec CRUD complet
+- **Remplacé** les 6 activités hardcodées et 3 catégories de prix par un système entièrement dynamique
+- **`ActivityDefinition`** : data class avec `name`, `emoji`, `price` — stockée en JSON dans DataStore (`activities_json`)
+- **CRUD** : `addActivity()`, `updateActivity(oldName, newDef)`, `removeActivity(name)` dans le ViewModel
+- **SettingsTab** : prix modifiable inline par activité, bouton ➕ pour ajouter, clic sur le nom pour éditer, 🗑️ pour supprimer
+- **EditActivityDialog** : composable dédié pour ajouter/modifier une activité (emoji, nom, prix annuel)
+- **Migration automatique** : au démarrage, les anciennes clés `gymlib_price`/`workout_price`/`running_price` sont converties en `ActivityDefinition` avec prix individuel
+- **Export/Import v2** : le JSON inclut le tableau `activities` complet ; l'import v1 (legacy) est rétro-compatible
+- **SessionTrackingTab** : affiche le prix par séance individuellement pour chaque activité
+- **CalendarDay** : utilise les `activityDefs` dynamiques pour résoudre les emojis
+
 ### Commits
 ```
+9e9f675 feat: activités dynamiques avec prix individuel et CRUD complet
+4473b7a docs: add CONTEXT.md for AI development sessions
 497c6b8 feat: ajout export/import JSON + navigation par swipe entre onglets
 2eae943 v1.0.0 - Release Muscunombre
 b0c89e5 🐀 Gym Rat v2: onboarding, activités, gamification
