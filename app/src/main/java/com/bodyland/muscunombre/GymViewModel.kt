@@ -11,6 +11,8 @@ import com.bodyland.muscunombre.data.GymDatabase
 import com.bodyland.muscunombre.data.GymSession
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import java.time.LocalDate
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "gym_tracker_prefs")
@@ -212,6 +214,73 @@ class GymViewModel(private val context: Context) : ViewModel() {
     // Obtenir les activités d'une date
     suspend fun getActivitiesForDate(date: LocalDate): List<String> {
         return sessionDao.getSessionsByDateSync(date).map { it.activity }
+    }
+    
+    // Exporter toutes les données en JSON
+    suspend fun exportDataToJson(): String {
+        val sessions = sessionDao.getAllSessions().first()
+        
+        val json = JSONObject().apply {
+            put("version", 1)
+            put("exportDate", LocalDate.now().toString())
+            
+            put("config", JSONObject().apply {
+                put("gymlibPrice", _gymlibPrice.value)
+                put("workoutPrice", _workoutPrice.value)
+                put("runningPrice", _runningPrice.value)
+                put("startDate", _startDate.value?.toString() ?: "")
+                put("endDate", _endDate.value?.toString() ?: "")
+            })
+            
+            put("sessions", JSONArray().apply {
+                sessions.forEach { session ->
+                    put(JSONObject().apply {
+                        put("date", session.date.toString())
+                        put("activity", session.activity)
+                    })
+                }
+            })
+        }
+        
+        return json.toString(2)
+    }
+    
+    // Importer les données depuis un JSON
+    fun importDataFromJson(jsonString: String) {
+        viewModelScope.launch {
+            val json = JSONObject(jsonString)
+            
+            // Importer la config
+            val config = json.getJSONObject("config")
+            context.dataStore.edit { preferences ->
+                preferences[GYMLIB_PRICE_KEY] = config.optDouble("gymlibPrice", 0.0)
+                preferences[WORKOUT_PRICE_KEY] = config.optDouble("workoutPrice", 0.0)
+                preferences[RUNNING_PRICE_KEY] = config.optDouble("runningPrice", 0.0)
+                
+                val startDateStr = config.optString("startDate", "")
+                if (startDateStr.isNotEmpty()) {
+                    preferences[START_DATE_KEY] = startDateStr
+                }
+                val endDateStr = config.optString("endDate", "")
+                if (endDateStr.isNotEmpty()) {
+                    preferences[END_DATE_KEY] = endDateStr
+                }
+                
+                preferences[ONBOARDING_COMPLETED_KEY] = true
+            }
+            
+            // Importer les sessions (reset + réimport)
+            sessionDao.deleteAllSessions()
+            val sessionsArray = json.getJSONArray("sessions")
+            val sessions = (0 until sessionsArray.length()).map { i ->
+                val sessionObj = sessionsArray.getJSONObject(i)
+                GymSession(
+                    date = LocalDate.parse(sessionObj.getString("date")),
+                    activity = sessionObj.getString("activity")
+                )
+            }
+            sessionDao.insertSessions(sessions)
+        }
     }
     
     // RESET COMPLET : vide la base de données

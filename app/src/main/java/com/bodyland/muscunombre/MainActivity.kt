@@ -3,8 +3,11 @@ package com.bodyland.muscunombre
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,6 +16,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -169,11 +174,12 @@ fun OnboardingScreen(viewModel: GymViewModel) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun MainAppContent(viewModel: GymViewModel) {
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabs = listOf("Suivi", "Calendrier", "Utilisateur", "Réglages")
+    val pagerState = rememberPagerState(pageCount = { tabs.size })
+    val coroutineScope = rememberCoroutineScope()
     
     // Récupérer le tier courant pour le header dynamique
     val sessionCount by viewModel.sessionCount.collectAsState()
@@ -199,11 +205,11 @@ fun MainAppContent(viewModel: GymViewModel) {
         Column(
             modifier = Modifier.fillMaxSize().padding(paddingValues)
         ) {
-            TabRow(selectedTabIndex = selectedTabIndex) {
+            TabRow(selectedTabIndex = pagerState.currentPage) {
                 tabs.forEachIndexed { index, title ->
                     Tab(
-                        selected = selectedTabIndex == index,
-                        onClick = { selectedTabIndex = index },
+                        selected = pagerState.currentPage == index,
+                        onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } },
                         text = { Text(title) },
                         icon = {
                             when (index) {
@@ -217,11 +223,16 @@ fun MainAppContent(viewModel: GymViewModel) {
                 }
             }
 
-            when (selectedTabIndex) {
-                0 -> SessionTrackingTab(viewModel)
-                1 -> CalendarTab(viewModel)
-                2 -> UserTab(viewModel)
-                3 -> SettingsTab(viewModel)
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                when (page) {
+                    0 -> SessionTrackingTab(viewModel)
+                    1 -> CalendarTab(viewModel)
+                    2 -> UserTab(viewModel)
+                    3 -> SettingsTab(viewModel)
+                }
             }
         }
     }
@@ -1004,6 +1015,106 @@ fun SettingsTab(viewModel: GymViewModel) {
         }
         
         Spacer(modifier = Modifier.weight(1f))
+        
+        // Export / Import
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text("📦 Exporter / Importer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Sauvegarde tes données (séances + config) en JSON pour les restaurer plus tard ou les transférer.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                val exportImportScope = rememberCoroutineScope()
+                val exportImportContext = LocalContext.current
+                var showImportDialog by remember { mutableStateOf(false) }
+                var pendingImportJson by remember { mutableStateOf<String?>(null) }
+                
+                val exportLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.CreateDocument("application/json")
+                ) { uri ->
+                    uri?.let {
+                        exportImportScope.launch {
+                            try {
+                                val json = viewModel.exportDataToJson()
+                                exportImportContext.contentResolver.openOutputStream(it)?.use { stream ->
+                                    stream.write(json.toByteArray())
+                                }
+                                Toast.makeText(exportImportContext, "✅ Export réussi !", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(exportImportContext, "❌ Erreur: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                }
+                
+                val importLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.OpenDocument()
+                ) { uri ->
+                    uri?.let {
+                        try {
+                            val json = exportImportContext.contentResolver.openInputStream(it)?.bufferedReader()?.readText() ?: ""
+                            pendingImportJson = json
+                            showImportDialog = true
+                        } catch (e: Exception) {
+                            Toast.makeText(exportImportContext, "❌ Erreur: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+                
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(
+                        onClick = { exportLauncher.launch("muscunombre_backup.json") },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("📤 Exporter")
+                    }
+                    OutlinedButton(
+                        onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("📥 Importer")
+                    }
+                }
+                
+                if (showImportDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showImportDialog = false; pendingImportJson = null },
+                        title = { Text("⚠️ Importer des données", fontWeight = FontWeight.Bold) },
+                        text = {
+                            Text("Cette action va remplacer toutes tes données actuelles (séances et configuration) par celles du fichier.\n\nCette action est irréversible.")
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    pendingImportJson?.let { json ->
+                                        try {
+                                            viewModel.importDataFromJson(json)
+                                            Toast.makeText(exportImportContext, "✅ Import réussi !", Toast.LENGTH_SHORT).show()
+                                        } catch (e: Exception) {
+                                            Toast.makeText(exportImportContext, "❌ Fichier invalide: ${e.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                    showImportDialog = false
+                                    pendingImportJson = null
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                            ) { Text("Oui, importer") }
+                        },
+                        dismissButton = {
+                            OutlinedButton(onClick = { showImportDialog = false; pendingImportJson = null }) {
+                                Text("Annuler")
+                            }
+                        }
+                    )
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
         
         // À propos
         Card(
