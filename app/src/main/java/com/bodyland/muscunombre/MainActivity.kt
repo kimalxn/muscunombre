@@ -43,12 +43,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.bodyland.muscunombre.data.ActivityDefinition
 import com.bodyland.muscunombre.data.GymSession
-import com.bodyland.muscunombre.data.ACTIVITIES
-import com.bodyland.muscunombre.data.GYMLIB_ACTIVITIES
-import com.bodyland.muscunombre.data.SALLE_ACTIVITIES
-import com.bodyland.muscunombre.data.EQUIPEMENT_ACTIVITIES
-import com.bodyland.muscunombre.data.FREE_ACTIVITIES
 import com.bodyland.muscunombre.data.getActivityEmoji
 import com.bodyland.muscunombre.TIERS
 import com.bodyland.muscunombre.getTierForSessions
@@ -241,9 +237,7 @@ fun MainAppContent(viewModel: GymViewModel) {
 @Composable
 fun SessionTrackingTab(viewModel: GymViewModel) {
     val sessionCount by viewModel.sessionCount.collectAsState()
-    val gymlibPrice by viewModel.gymlibPrice.collectAsState()
-    val runningPrice by viewModel.runningPrice.collectAsState()
-    val workoutPrice by viewModel.workoutPrice.collectAsState()
+    val activitiesDefs by viewModel.activities.collectAsState()
     val subscriptionPrice by viewModel.subscriptionPrice.collectAsState()
     val startDate by viewModel.startDate.collectAsState()
     val endDate by viewModel.endDate.collectAsState()
@@ -261,20 +255,13 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
     val totalDays = if (startDate != null && endDate != null) java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate).toInt() else 0
     val daysPassed = startDate?.let { java.time.temporal.ChronoUnit.DAYS.between(it, today).toInt().coerceAtLeast(0) } ?: 0
     
-    // Compter les séances par catégorie (exclure "Autres")
-    val gymlibCount = allSessions.count { GYMLIB_ACTIVITIES.contains(it.activity) }
-    val salleCount = allSessions.count { SALLE_ACTIVITIES.contains(it.activity) }
-    val equipementCount = allSessions.count { EQUIPEMENT_ACTIVITIES.contains(it.activity) }
+    // Compter les séances par activité
+    val activityCounts = allSessions.groupingBy { it.activity }.eachCount()
     
-    // Prix par séance par catégorie (seulement si prix > 0)
-    val gymlibPricePerSession = if (gymlibPrice > 0 && gymlibCount > 0) gymlibPrice / gymlibCount else 0.0
-    val sallePricePerSession = if (workoutPrice > 0 && salleCount > 0) workoutPrice / salleCount else 0.0
-    val equipementPricePerSession = if (runningPrice > 0 && equipementCount > 0) runningPrice / equipementCount else 0.0
-    
-    // Séances payantes = uniquement les catégories avec prix > 0
-    val paidSessionCount = (if (gymlibPrice > 0) gymlibCount else 0) + 
-                           (if (workoutPrice > 0) salleCount else 0) + 
-                           (if (runningPrice > 0) equipementCount else 0)
+    // Séances payantes (activités avec prix > 0)
+    val paidSessionCount = activitiesDefs
+        .filter { it.price > 0 }
+        .sumOf { activityCounts[it.name] ?: 0 }
     val globalPricePerSession = if (paidSessionCount > 0 && subscriptionPrice > 0) subscriptionPrice / paidSessionCount else 0.0
     
     Column(
@@ -322,10 +309,11 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                 Text("🏃 Pointer des activités", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                ACTIVITIES.forEach { activity ->
+                activitiesDefs.forEach { actDef ->
+                    val activity = actDef.name
                     val alreadyLogged = todayActivities.contains(activity)
                     val isSelected = selectedActivities.contains(activity)
-                    val isFree = FREE_ACTIVITIES.contains(activity)
+                    val isFree = actDef.price <= 0
                     
                     Row(
                         modifier = Modifier
@@ -353,7 +341,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                             enabled = !alreadyLogged
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(getActivityEmoji(activity) + " " + activity, style = MaterialTheme.typography.bodyMedium)
+                        Text(actDef.emoji + " " + activity, style = MaterialTheme.typography.bodyMedium)
                         Spacer(modifier = Modifier.weight(1f))
                         if (alreadyLogged) {
                             Text("✅", fontSize = 16.sp)
@@ -406,52 +394,35 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
             }
         }
         
-        // Prix par catégorie
+        // Prix par activité
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("💳 Coût par séance (par catégorie)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("💳 Coût par séance (par activité)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Gymlib
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column {
-                        Text("🚴💪🥊 Gymlib", fontWeight = FontWeight.Bold)
-                        Text("$gymlibCount séances", style = MaterialTheme.typography.bodySmall)
-                    }
-                    if (gymlibPrice > 0 && gymlibCount > 0) {
-                        Text("%.2f €".format(gymlibPricePerSession), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    } else {
-                        Text("-- €", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                // Salle
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column {
-                        Text("🏋️ Salle (Workout)", fontWeight = FontWeight.Bold)
-                        Text("$salleCount séances", style = MaterialTheme.typography.bodySmall)
-                    }
-                    if (workoutPrice > 0 && salleCount > 0) {
-                        Text("%.2f €".format(sallePricePerSession), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    } else {
-                        Text("-- €", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                // Équipement Running
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column {
-                        Text("👟 Équipement Running", fontWeight = FontWeight.Bold)
-                        Text("$equipementCount séances", style = MaterialTheme.typography.bodySmall)
-                    }
-                    if (runningPrice > 0 && equipementCount > 0) {
-                        Text("%.2f €".format(equipementPricePerSession), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    } else {
-                        Text("-- €", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val paidActivities = activitiesDefs.filter { it.price > 0 }
+                if (paidActivities.isEmpty()) {
+                    Text("Aucune activité avec prix configuré", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    paidActivities.forEachIndexed { index, actDef ->
+                        val count = activityCounts[actDef.name] ?: 0
+                        val pricePerSession = if (count > 0) actDef.price / count else 0.0
+                        
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column {
+                                Text(actDef.emoji + " " + actDef.name, fontWeight = FontWeight.Bold)
+                                Text("$count séances • ${actDef.price.toInt()}€/an", style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (count > 0) {
+                                Text("%.2f €".format(pricePerSession), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            } else {
+                                Text("-- €", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        
+                        if (index < paidActivities.size - 1) {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        }
                     }
                 }
             }
@@ -492,22 +463,18 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                 Text("📊 Activités enregistrées", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                val activityCounts = allSessions.groupingBy { it.activity }.eachCount()
-                
                 if (activityCounts.isEmpty()) {
                     Text("Aucune séance enregistrée", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f))
                 } else {
-                    ACTIVITIES.forEach { activity ->
-                        val count = activityCounts[activity] ?: 0
-                        if (count > 0) {
-                            val suffix = if (count > 1) "s" else ""
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(getActivityEmoji(activity) + " " + activity, style = MaterialTheme.typography.bodyMedium)
-                                Text("$count séance$suffix", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                            }
+                    activityCounts.entries.sortedByDescending { it.value }.forEach { (activity, count) ->
+                        val suffix = if (count > 1) "s" else ""
+                        val emoji = getActivityEmoji(activity, activitiesDefs)
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("$emoji $activity", style = MaterialTheme.typography.bodyMedium)
+                            Text("$count séance$suffix", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
@@ -653,6 +620,7 @@ fun CalendarTab(viewModel: GymViewModel) {
     val sessionsInPeriod by viewModel.sessionsInPeriod.collectAsState()
     val sessionCount by viewModel.sessionCount.collectAsState()
     val allSessions by viewModel.allSessions.collectAsState()
+    val activitiesDefs by viewModel.activities.collectAsState()
     
     var currentMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDateForActivity by remember { mutableStateOf<LocalDate?>(null) }
@@ -737,6 +705,7 @@ fun CalendarTab(viewModel: GymViewModel) {
                     date = date,
                     isGymDay = isGymDay,
                     activities = sessions.map { it.activity },
+                    activityDefs = activitiesDefs,
                     isToday = date == today,
                     isFuture = isFuture,
                     onClick = { 
@@ -766,6 +735,7 @@ fun MultiActivitySelectionDialog(
     existingSessions: List<GymSession>,
     onDismiss: () -> Unit
 ) {
+    val activitiesDefs by viewModel.activities.collectAsState()
     val existingActivities = existingSessions.map { it.activity }.toSet()
     var selectedActivities by remember { mutableStateOf(existingActivities) }
     val scope = rememberCoroutineScope()
@@ -778,9 +748,10 @@ fun MultiActivitySelectionDialog(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Sélectionne les activités :", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
-                ACTIVITIES.forEach { activity ->
+                activitiesDefs.forEach { actDef ->
+                    val activity = actDef.name
                     val isSelected = selectedActivities.contains(activity)
-                    val isFree = FREE_ACTIVITIES.contains(activity)
+                    val isFree = actDef.price <= 0
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -792,7 +763,7 @@ fun MultiActivitySelectionDialog(
                     ) {
                         Checkbox(checked = isSelected, onCheckedChange = { checked -> selectedActivities = if (checked) selectedActivities + activity else selectedActivities - activity })
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(getActivityEmoji(activity) + " " + activity)
+                        Text(actDef.emoji + " " + activity)
                         if (isFree) {
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("(gratuit)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -835,6 +806,7 @@ fun CalendarDay(
     date: LocalDate?,
     isGymDay: Boolean,
     activities: List<String>,
+    activityDefs: List<ActivityDefinition> = emptyList(),
     isToday: Boolean,
     isFuture: Boolean,
     onClick: () -> Unit
@@ -866,7 +838,7 @@ fun CalendarDay(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(date.dayOfMonth.toString(), color = textColor, fontWeight = if (isGymDay || isToday) FontWeight.Bold else FontWeight.Normal, fontSize = 14.sp)
                 if (isGymDay && activities.isNotEmpty()) {
-                    val displayEmoji = if (activities.size > 1) "🏆" else getActivityEmoji(activities.first())
+                    val displayEmoji = if (activities.size > 1) "🏆" else getActivityEmoji(activities.first(), activityDefs)
                     Text(displayEmoji, fontSize = 10.sp)
                 }
             }
@@ -876,19 +848,16 @@ fun CalendarDay(
 
 @Composable
 fun SettingsTab(viewModel: GymViewModel) {
-    val gymlibPrice by viewModel.gymlibPrice.collectAsState()
-    val runningPrice by viewModel.runningPrice.collectAsState()
-    val workoutPrice by viewModel.workoutPrice.collectAsState()
+    val activitiesDefs by viewModel.activities.collectAsState()
     val subscriptionPrice by viewModel.subscriptionPrice.collectAsState()
     val startDate by viewModel.startDate.collectAsState()
     val endDate by viewModel.endDate.collectAsState()
     
-    var gymlibText by remember(gymlibPrice) { mutableStateOf(if (gymlibPrice > 0) gymlibPrice.toInt().toString() else "") }
-    var runningText by remember(runningPrice) { mutableStateOf(if (runningPrice > 0) runningPrice.toInt().toString() else "") }
-    var workoutText by remember(workoutPrice) { mutableStateOf(if (workoutPrice > 0) workoutPrice.toInt().toString() else "") }
     var showStartDatePicker by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showAddActivityDialog by remember { mutableStateOf(false) }
+    var editingActivity by remember { mutableStateOf<ActivityDefinition?>(null) }
     
     val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
     
@@ -901,71 +870,61 @@ fun SettingsTab(viewModel: GymViewModel) {
                 Text("💳 Prix des abonnements", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Gymlib
-                Text("🚴💪🥊 Gymlib (Dynamo, Circuit Training, Cardio Boxing)", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = gymlibText,
-                    onValueChange = { newValue ->
-                        if (newValue.isEmpty() || newValue.all { it.isDigit() }) {
-                            gymlibText = newValue
-                            viewModel.updateGymlibPrice(newValue.toDoubleOrNull() ?: 0.0)
+                activitiesDefs.forEachIndexed { index, actDef ->
+                    key(actDef.name) {
+                        var priceText by remember(actDef.price) { 
+                            mutableStateOf(if (actDef.price > 0) actDef.price.toInt().toString() else "") 
                         }
-                    },
-                    placeholder = { Text("") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    suffix = { Text("€") }
-                )
-                if (gymlibPrice > 0) {
-                    Text("Sous-total: " + gymlibPrice.toInt() + "€", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                actDef.emoji + " " + actDef.name,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clickable { editingActivity = actDef }
+                                    .weight(1f)
+                            )
+                            IconButton(
+                                onClick = { viewModel.removeActivity(actDef.name) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Text("🗑️", fontSize = 14.sp)
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = priceText,
+                            onValueChange = { newValue ->
+                                if (newValue.isEmpty() || newValue.all { it.isDigit() }) {
+                                    priceText = newValue
+                                    viewModel.updateActivity(actDef.name, actDef.copy(price = newValue.toDoubleOrNull() ?: 0.0))
+                                }
+                            },
+                            placeholder = { Text("0") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            suffix = { Text("€/an") }
+                        )
+                        
+                        if (index < activitiesDefs.size - 1) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+                    }
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Salle (Workout)
-                Text("🏋️ Salle (Workout)", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = workoutText,
-                    onValueChange = { newValue ->
-                        if (newValue.isEmpty() || newValue.all { it.isDigit() }) {
-                            workoutText = newValue
-                            viewModel.updateWorkoutPrice(newValue.toDoubleOrNull() ?: 0.0)
-                        }
-                    },
-                    placeholder = { Text("") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    suffix = { Text("€") }
-                )
-                if (workoutPrice > 0) {
-                    Text("Sous-total: " + workoutPrice.toInt() + "€", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Équipement Running
-                Text("👟 Équipement Running (chaussures, etc.)", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = runningText,
-                    onValueChange = { newValue ->
-                        if (newValue.isEmpty() || newValue.all { it.isDigit() }) {
-                            runningText = newValue
-                            viewModel.updateRunningPrice(newValue.toDoubleOrNull() ?: 0.0)
-                        }
-                    },
-                    placeholder = { Text("") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    suffix = { Text("€") }
-                )
-                if (runningPrice > 0) {
-                    Text("Sous-total: " + runningPrice.toInt() + "€", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                OutlinedButton(
+                    onClick = { showAddActivityDialog = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("➕ Ajouter une activité")
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -1001,14 +960,12 @@ fun SettingsTab(viewModel: GymViewModel) {
                 Text("ℹ️ Comment ça marche ?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "1. Renseigne tes prix par catégorie :\n" +
-                    "   • Gymlib = Dynamo + Circuit Training + Cardio Boxing\n" +
-                    "   • Salle = Workout (abonnement gym)\n" +
-                    "   • Équipement = Running (chaussures, etc.)\n" +
+                    "1. Configure tes activités et leurs prix annuels\n" +
                     "2. Définis ta date de début (fin = +365 jours)\n" +
                     "3. Pointe tes activités dans 'Suivi' ou 'Calendrier'\n" +
-                    "4. L'activité 'Autres' est gratuite (non comptabilisée)\n" +
-                    "5. Le coût par séance est calculé par catégorie et globalement",
+                    "4. Les activités à 0€ sont gratuites\n" +
+                    "5. Le coût par séance est calculé par activité et globalement\n" +
+                    "6. Tu peux ajouter, modifier ou supprimer des activités",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -1269,6 +1226,85 @@ fun SettingsTab(viewModel: GymViewModel) {
             onDismiss = { showStartDatePicker = false }
         )
     }
+    
+    if (showAddActivityDialog) {
+        EditActivityDialog(
+            activityDef = null,
+            onSave = { viewModel.addActivity(it); showAddActivityDialog = false },
+            onDismiss = { showAddActivityDialog = false }
+        )
+    }
+    
+    editingActivity?.let { actDef ->
+        EditActivityDialog(
+            activityDef = actDef,
+            onSave = { viewModel.updateActivity(actDef.name, it); editingActivity = null },
+            onDismiss = { editingActivity = null }
+        )
+    }
+}
+
+@Composable
+fun EditActivityDialog(
+    activityDef: ActivityDefinition?,
+    onSave: (ActivityDefinition) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val isNew = activityDef == null
+    var name by remember { mutableStateOf(activityDef?.name ?: "") }
+    var emoji by remember { mutableStateOf(activityDef?.emoji ?: "🏃") }
+    var priceText by remember { mutableStateOf(if (activityDef != null && activityDef.price > 0) activityDef.price.toInt().toString() else "") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (isNew) "➕ Nouvelle activité" else "✏️ Modifier l'activité", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = emoji,
+                    onValueChange = { emoji = it },
+                    label = { Text("Emoji") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Nom de l'activité") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = priceText,
+                    onValueChange = { if (it.isEmpty() || it.all { c -> c.isDigit() }) priceText = it },
+                    label = { Text("Prix annuel") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    suffix = { Text("€/an") }
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isNotBlank()) {
+                        onSave(ActivityDefinition(
+                            name = name.trim(),
+                            emoji = emoji.ifBlank { "🏃" },
+                            price = priceText.toDoubleOrNull() ?: 0.0
+                        ))
+                    }
+                },
+                enabled = name.isNotBlank()
+            ) {
+                Text(if (isNew) "Ajouter" else "Enregistrer")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Annuler") }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

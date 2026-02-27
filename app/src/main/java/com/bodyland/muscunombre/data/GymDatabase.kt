@@ -4,25 +4,28 @@ import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
-// Liste des activités avec emojis et catégories de prix
-val ACTIVITY_EMOJIS = mapOf(
-    "Dynamo" to "🚴",
-    "Circuit Training" to "💪",
-    "Cardio Boxing" to "🥊",
-    "Workout" to "🏋️",
-    "Running" to "👟",
-    "Autres" to "➕"
+// Définition d'une activité (nom, emoji, prix annuel)
+data class ActivityDefinition(
+    val name: String,
+    val emoji: String,
+    val price: Double = 0.0
 )
 
-// Activités par catégorie de prix
-val GYMLIB_ACTIVITIES = listOf("Dynamo", "Circuit Training", "Cardio Boxing")
-val SALLE_ACTIVITIES = listOf("Workout")
-val EQUIPEMENT_ACTIVITIES = listOf("Running")
-val FREE_ACTIVITIES = listOf("Autres") // Non comptabilisé dans les prix
+// Activités par défaut
+val DEFAULT_ACTIVITIES = listOf(
+    ActivityDefinition("Dynamo", "🚴", 0.0),
+    ActivityDefinition("Circuit Training", "💪", 0.0),
+    ActivityDefinition("Cardio Boxing", "🥊", 0.0),
+    ActivityDefinition("Workout", "🏋️", 0.0),
+    ActivityDefinition("Running", "👟", 0.0),
+    ActivityDefinition("Autres", "➕", 0.0)
+)
 
-val ACTIVITIES = listOf("Dynamo", "Circuit Training", "Cardio Boxing", "Workout", "Running", "Autres")
-
-fun getActivityEmoji(activity: String): String = ACTIVITY_EMOJIS[activity] ?: "💪"
+fun getActivityEmoji(activity: String, activities: List<ActivityDefinition> = emptyList()): String {
+    return activities.find { it.name == activity }?.emoji
+        ?: DEFAULT_ACTIVITIES.find { it.name == activity }?.emoji
+        ?: "💪"
+}
 
 // Chaque entrée = 1 activité sur 1 date (permet plusieurs activités par jour)
 @Entity(tableName = "gym_sessions")

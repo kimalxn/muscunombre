@@ -7,6 +7,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.bodyland.muscunombre.data.ActivityDefinition
+import com.bodyland.muscunombre.data.DEFAULT_ACTIVITIES
 import com.bodyland.muscunombre.data.GymDatabase
 import com.bodyland.muscunombre.data.GymSession
 import kotlinx.coroutines.flow.*
@@ -52,11 +54,12 @@ fun getProgressInTier(count: Int, tier: GamificationTier): Float {
 class GymViewModel(private val context: Context) : ViewModel() {
     
     companion object {
-        // Prix par catégorie
+        // Legacy price keys (for migration from v1)
         private val GYMLIB_PRICE_KEY = doublePreferencesKey("gymlib_price")
         private val RUNNING_PRICE_KEY = doublePreferencesKey("running_price")
         private val WORKOUT_PRICE_KEY = doublePreferencesKey("workout_price")
         
+        private val ACTIVITIES_KEY = stringPreferencesKey("activities_json")
         private val START_DATE_KEY = stringPreferencesKey("start_date")
         private val END_DATE_KEY = stringPreferencesKey("end_date")
         private val ONBOARDING_COMPLETED_KEY = booleanPreferencesKey("onboarding_completed")
@@ -65,24 +68,14 @@ class GymViewModel(private val context: Context) : ViewModel() {
     private val database = GymDatabase.getDatabase(context)
     private val sessionDao = database.gymSessionDao()
     
-    // Prix par catégorie
-    private val _gymlibPrice = MutableStateFlow(0.0)
-    val gymlibPrice: StateFlow<Double> = _gymlibPrice.asStateFlow()
+    // Activités dynamiques
+    private val _activities = MutableStateFlow(DEFAULT_ACTIVITIES)
+    val activities: StateFlow<List<ActivityDefinition>> = _activities.asStateFlow()
     
-    private val _runningPrice = MutableStateFlow(0.0)
-    val runningPrice: StateFlow<Double> = _runningPrice.asStateFlow()
-    
-    private val _workoutPrice = MutableStateFlow(0.0)
-    val workoutPrice: StateFlow<Double> = _workoutPrice.asStateFlow()
-    
-    // Prix total (somme des abonnements > 0€ seulement)
-    val subscriptionPrice: StateFlow<Double> = combine(
-        _gymlibPrice, _runningPrice, _workoutPrice
-    ) { gymlib, running, workout -> 
-        (if (gymlib > 0) gymlib else 0.0) + 
-        (if (running > 0) running else 0.0) + 
-        (if (workout > 0) workout else 0.0)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+    // Prix total (somme de tous les prix d'activités > 0)
+    val subscriptionPrice: StateFlow<Double> = _activities
+        .map { list -> list.sumOf { if (it.price > 0) it.price else 0.0 } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
     
     private val _startDate = MutableStateFlow<LocalDate?>(null)
     val startDate: StateFlow<LocalDate?> = _startDate.asStateFlow()
@@ -120,12 +113,33 @@ class GymViewModel(private val context: Context) : ViewModel() {
         loadPreferences()
     }
     
+    private fun activitiesToJson(activities: List<ActivityDefinition>): String {
+        return JSONArray().apply {
+            activities.forEach { act ->
+                put(JSONObject().apply {
+                    put("name", act.name)
+                    put("emoji", act.emoji)
+                    put("price", act.price)
+                })
+            }
+        }.toString()
+    }
+    
+    private fun jsonToActivities(jsonStr: String): List<ActivityDefinition> {
+        val array = JSONArray(jsonStr)
+        return (0 until array.length()).map { i ->
+            val obj = array.getJSONObject(i)
+            ActivityDefinition(
+                name = obj.getString("name"),
+                emoji = obj.getString("emoji"),
+                price = obj.optDouble("price", 0.0)
+            )
+        }
+    }
+    
     private fun loadPreferences() {
         viewModelScope.launch {
             context.dataStore.data.collect { preferences ->
-                _gymlibPrice.value = preferences[GYMLIB_PRICE_KEY] ?: 0.0
-                _runningPrice.value = preferences[RUNNING_PRICE_KEY] ?: 0.0
-                _workoutPrice.value = preferences[WORKOUT_PRICE_KEY] ?: 0.0
                 _onboardingCompleted.value = preferences[ONBOARDING_COMPLETED_KEY] ?: false
                 
                 val startDateStr = preferences[START_DATE_KEY]
@@ -133,6 +147,35 @@ class GymViewModel(private val context: Context) : ViewModel() {
                 
                 val endDateStr = preferences[END_DATE_KEY]
                 _endDate.value = endDateStr?.let { LocalDate.parse(it) }
+                
+                // Load activities (with migration from legacy format)
+                val activitiesJson = preferences[ACTIVITIES_KEY]
+                if (activitiesJson != null) {
+                    _activities.value = jsonToActivities(activitiesJson)
+                } else {
+                    // Migration: check for legacy price keys
+                    val gymlibPrice = preferences[GYMLIB_PRICE_KEY] ?: 0.0
+                    val workoutPrice = preferences[WORKOUT_PRICE_KEY] ?: 0.0
+                    val runningPrice = preferences[RUNNING_PRICE_KEY] ?: 0.0
+                    
+                    if (gymlibPrice > 0 || workoutPrice > 0 || runningPrice > 0) {
+                        val perGymlib = if (gymlibPrice > 0) gymlibPrice / 3.0 else 0.0
+                        val migratedActivities = listOf(
+                            ActivityDefinition("Dynamo", "🚴", perGymlib),
+                            ActivityDefinition("Circuit Training", "💪", perGymlib),
+                            ActivityDefinition("Cardio Boxing", "🥊", perGymlib),
+                            ActivityDefinition("Workout", "🏋️", workoutPrice),
+                            ActivityDefinition("Running", "👟", runningPrice),
+                            ActivityDefinition("Autres", "➕", 0.0)
+                        )
+                        _activities.value = migratedActivities
+                        context.dataStore.edit { prefs ->
+                            prefs[ACTIVITIES_KEY] = activitiesToJson(migratedActivities)
+                        }
+                    } else {
+                        _activities.value = DEFAULT_ACTIVITIES
+                    }
+                }
             }
         }
     }
@@ -216,18 +259,25 @@ class GymViewModel(private val context: Context) : ViewModel() {
         return sessionDao.getSessionsByDateSync(date).map { it.activity }
     }
     
-    // Exporter toutes les données en JSON
+    // Exporter toutes les données en JSON (v2)
     suspend fun exportDataToJson(): String {
         val sessions = sessionDao.getAllSessions().first()
         
         val json = JSONObject().apply {
-            put("version", 1)
+            put("version", 2)
             put("exportDate", LocalDate.now().toString())
             
+            put("activities", JSONArray().apply {
+                _activities.value.forEach { act ->
+                    put(JSONObject().apply {
+                        put("name", act.name)
+                        put("emoji", act.emoji)
+                        put("price", act.price)
+                    })
+                }
+            })
+            
             put("config", JSONObject().apply {
-                put("gymlibPrice", _gymlibPrice.value)
-                put("workoutPrice", _workoutPrice.value)
-                put("runningPrice", _runningPrice.value)
                 put("startDate", _startDate.value?.toString() ?: "")
                 put("endDate", _endDate.value?.toString() ?: "")
             })
@@ -245,18 +295,46 @@ class GymViewModel(private val context: Context) : ViewModel() {
         return json.toString(2)
     }
     
-    // Importer les données depuis un JSON
+    // Importer les données depuis un JSON (v1 + v2)
     fun importDataFromJson(jsonString: String) {
         viewModelScope.launch {
             val json = JSONObject(jsonString)
+            val version = json.optInt("version", 1)
             
-            // Importer la config
+            // Import activities
+            if (version >= 2 && json.has("activities")) {
+                val activitiesArray = json.getJSONArray("activities")
+                val importedActivities = (0 until activitiesArray.length()).map { i ->
+                    val obj = activitiesArray.getJSONObject(i)
+                    ActivityDefinition(
+                        name = obj.getString("name"),
+                        emoji = obj.getString("emoji"),
+                        price = obj.optDouble("price", 0.0)
+                    )
+                }
+                context.dataStore.edit { it[ACTIVITIES_KEY] = activitiesToJson(importedActivities) }
+            } else {
+                // v1: reconstruct from legacy price keys
+                val config = json.getJSONObject("config")
+                val gymlibPrice = config.optDouble("gymlibPrice", 0.0)
+                val workoutPrice = config.optDouble("workoutPrice", 0.0)
+                val runningPrice = config.optDouble("runningPrice", 0.0)
+                val perGymlib = if (gymlibPrice > 0) gymlibPrice / 3.0 else 0.0
+                
+                val migratedActivities = listOf(
+                    ActivityDefinition("Dynamo", "🚴", perGymlib),
+                    ActivityDefinition("Circuit Training", "💪", perGymlib),
+                    ActivityDefinition("Cardio Boxing", "🥊", perGymlib),
+                    ActivityDefinition("Workout", "🏋️", workoutPrice),
+                    ActivityDefinition("Running", "👟", runningPrice),
+                    ActivityDefinition("Autres", "➕", 0.0)
+                )
+                context.dataStore.edit { it[ACTIVITIES_KEY] = activitiesToJson(migratedActivities) }
+            }
+            
+            // Import config
             val config = json.getJSONObject("config")
             context.dataStore.edit { preferences ->
-                preferences[GYMLIB_PRICE_KEY] = config.optDouble("gymlibPrice", 0.0)
-                preferences[WORKOUT_PRICE_KEY] = config.optDouble("workoutPrice", 0.0)
-                preferences[RUNNING_PRICE_KEY] = config.optDouble("runningPrice", 0.0)
-                
                 val startDateStr = config.optString("startDate", "")
                 if (startDateStr.isNotEmpty()) {
                     preferences[START_DATE_KEY] = startDateStr
@@ -265,11 +343,10 @@ class GymViewModel(private val context: Context) : ViewModel() {
                 if (endDateStr.isNotEmpty()) {
                     preferences[END_DATE_KEY] = endDateStr
                 }
-                
                 preferences[ONBOARDING_COMPLETED_KEY] = true
             }
             
-            // Importer les sessions (reset + réimport)
+            // Import sessions
             sessionDao.deleteAllSessions()
             val sessionsArray = json.getJSONArray("sessions")
             val sessions = (0 until sessionsArray.length()).map { i ->
@@ -283,6 +360,31 @@ class GymViewModel(private val context: Context) : ViewModel() {
         }
     }
     
+    // --- Activities CRUD ---
+    
+    fun addActivity(activity: ActivityDefinition) {
+        viewModelScope.launch {
+            val updated = _activities.value + activity
+            context.dataStore.edit { it[ACTIVITIES_KEY] = activitiesToJson(updated) }
+        }
+    }
+    
+    fun updateActivity(oldName: String, newActivity: ActivityDefinition) {
+        viewModelScope.launch {
+            val updated = _activities.value.map { 
+                if (it.name == oldName) newActivity else it 
+            }
+            context.dataStore.edit { it[ACTIVITIES_KEY] = activitiesToJson(updated) }
+        }
+    }
+    
+    fun removeActivity(name: String) {
+        viewModelScope.launch {
+            val updated = _activities.value.filter { it.name != name }
+            context.dataStore.edit { it[ACTIVITIES_KEY] = activitiesToJson(updated) }
+        }
+    }
+    
     // RESET COMPLET : vide la base de données
     fun resetSessions() {
         viewModelScope.launch {
@@ -290,39 +392,12 @@ class GymViewModel(private val context: Context) : ViewModel() {
         }
     }
     
-    // RESET COMPLET avec prix
+    // RESET COMPLET avec activités
     fun resetAllData() {
         viewModelScope.launch {
             sessionDao.deleteAllSessions()
             context.dataStore.edit { preferences ->
-                preferences[GYMLIB_PRICE_KEY] = 0.0
-                preferences[RUNNING_PRICE_KEY] = 0.0
-                preferences[WORKOUT_PRICE_KEY] = 0.0
-            }
-        }
-    }
-    
-    // Mettre à jour les prix
-    fun updateGymlibPrice(price: Double) {
-        viewModelScope.launch {
-            context.dataStore.edit { preferences ->
-                preferences[GYMLIB_PRICE_KEY] = price
-            }
-        }
-    }
-    
-    fun updateRunningPrice(price: Double) {
-        viewModelScope.launch {
-            context.dataStore.edit { preferences ->
-                preferences[RUNNING_PRICE_KEY] = price
-            }
-        }
-    }
-    
-    fun updateWorkoutPrice(price: Double) {
-        viewModelScope.launch {
-            context.dataStore.edit { preferences ->
-                preferences[WORKOUT_PRICE_KEY] = price
+                preferences[ACTIVITIES_KEY] = activitiesToJson(DEFAULT_ACTIVITIES)
             }
         }
     }
