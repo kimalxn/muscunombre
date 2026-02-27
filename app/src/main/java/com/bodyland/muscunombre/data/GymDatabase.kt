@@ -3,6 +3,8 @@ package com.bodyland.muscunombre.data
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 // Définition d'une activité (nom, emoji, prix annuel)
 data class ActivityDefinition(
@@ -33,7 +35,8 @@ data class GymSession(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val date: LocalDate,
-    val activity: String = "Workout"
+    val activity: String = "Workout",
+    val loggedAt: Long = System.currentTimeMillis()
 )
 
 @Dao
@@ -90,7 +93,7 @@ class Converters {
     }
 }
 
-@Database(entities = [GymSession::class], version = 3, exportSchema = false)
+@Database(entities = [GymSession::class], version = 4, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class GymDatabase : RoomDatabase() {
     abstract fun gymSessionDao(): GymSessionDao
@@ -99,6 +102,12 @@ abstract class GymDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: GymDatabase? = null
         
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE gym_sessions ADD COLUMN loggedAt INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        
         fun getDatabase(context: android.content.Context): GymDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -106,6 +115,7 @@ abstract class GymDatabase : RoomDatabase() {
                     GymDatabase::class.java,
                     "gym_database"
                 )
+                .addMigrations(MIGRATION_3_4)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

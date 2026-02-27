@@ -287,6 +287,7 @@ class GymViewModel(private val context: Context) : ViewModel() {
                     put(JSONObject().apply {
                         put("date", session.date.toString())
                         put("activity", session.activity)
+                        put("loggedAt", session.loggedAt)
                     })
                 }
             })
@@ -353,7 +354,8 @@ class GymViewModel(private val context: Context) : ViewModel() {
                 val sessionObj = sessionsArray.getJSONObject(i)
                 GymSession(
                     date = LocalDate.parse(sessionObj.getString("date")),
-                    activity = sessionObj.getString("activity")
+                    activity = sessionObj.getString("activity"),
+                    loggedAt = sessionObj.optLong("loggedAt", System.currentTimeMillis())
                 )
             }
             sessionDao.insertSessions(sessions)

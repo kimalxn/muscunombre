@@ -27,8 +27,10 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -173,11 +175,9 @@ fun OnboardingScreen(viewModel: GymViewModel) {
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun MainAppContent(viewModel: GymViewModel) {
-    val tabs = listOf("Suivi", "Calendrier", "Utilisateur", "Réglages")
-    val pagerState = rememberPagerState(pageCount = { tabs.size })
+    val pagerState = rememberPagerState(pageCount = { 4 })
     val coroutineScope = rememberCoroutineScope()
     
-    // Récupérer le tier courant pour le header dynamique
     val sessionCount by viewModel.sessionCount.collectAsState()
     val currentTier = getTierForSessions(sessionCount)
     val tierColor = Color(currentTier.colorHex)
@@ -196,39 +196,45 @@ fun MainAppContent(viewModel: GymViewModel) {
                     containerColor = tierColor
                 )
             )
+        },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = pagerState.currentPage == 0,
+                    onClick = { coroutineScope.launch { pagerState.animateScrollToPage(0) } },
+                    icon = { Icon(Icons.Filled.Home, contentDescription = "Suivi") },
+                    label = { Text("Suivi") }
+                )
+                NavigationBarItem(
+                    selected = pagerState.currentPage == 1,
+                    onClick = { coroutineScope.launch { pagerState.animateScrollToPage(1) } },
+                    icon = { Icon(Icons.Filled.DateRange, contentDescription = "Calendrier") },
+                    label = { Text("Calendrier") }
+                )
+                NavigationBarItem(
+                    selected = pagerState.currentPage == 2,
+                    onClick = { coroutineScope.launch { pagerState.animateScrollToPage(2) } },
+                    icon = { Icon(Icons.Filled.Person, contentDescription = "Profil") },
+                    label = { Text("Profil") }
+                )
+                NavigationBarItem(
+                    selected = pagerState.currentPage == 3,
+                    onClick = { coroutineScope.launch { pagerState.animateScrollToPage(3) } },
+                    icon = { Icon(Icons.Filled.Settings, contentDescription = "Réglages") },
+                    label = { Text("Réglages") }
+                )
+            }
         }
     ) { paddingValues ->
-        Column(
+        HorizontalPager(
+            state = pagerState,
             modifier = Modifier.fillMaxSize().padding(paddingValues)
-        ) {
-            TabRow(selectedTabIndex = pagerState.currentPage) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = pagerState.currentPage == index,
-                        onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } },
-                        text = { Text(title) },
-                        icon = {
-                            when (index) {
-                                0 -> Icon(Icons.Filled.Add, contentDescription = null)
-                                1 -> Icon(Icons.Filled.DateRange, contentDescription = null)
-                                2 -> Icon(Icons.Filled.Person, contentDescription = null)
-                                3 -> Icon(Icons.Filled.Settings, contentDescription = null)
-                            }
-                        }
-                    )
-                }
-            }
-
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize()
-            ) { page ->
-                when (page) {
-                    0 -> SessionTrackingTab(viewModel)
-                    1 -> CalendarTab(viewModel)
-                    2 -> UserTab(viewModel)
-                    3 -> SettingsTab(viewModel)
-                }
+        ) { page ->
+            when (page) {
+                0 -> SessionTrackingTab(viewModel)
+                1 -> CalendarTab(viewModel)
+                2 -> UserTab(viewModel)
+                3 -> SettingsTab(viewModel)
             }
         }
     }
@@ -277,7 +283,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
         ) {
             Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("📅 Période de suivi", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Période de suivi", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     (startDate?.format(dateFormatter) ?: "--") + " → " + (endDate?.format(dateFormatter) ?: "--"),
@@ -306,7 +312,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
         
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("🏃 Pointer des activités", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text("Pointer des activités", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(12.dp))
                 
                 activitiesDefs.forEach { actDef ->
@@ -352,7 +358,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                 Spacer(modifier = Modifier.height(12.dp))
                 
                 val buttonText = if (selectedActivities.isEmpty()) "Sélectionne des activités" 
-                    else "✅ Pointer " + selectedActivities.size + " activité(s)"
+                    else "Pointer " + selectedActivities.size + " activité(s)"
                 
                 Button(
                     onClick = {
@@ -382,7 +388,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                 modifier = Modifier.fillMaxWidth().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("💰 Coût par séance (global)", style = MaterialTheme.typography.titleMedium)
+                Text("Coût par séance", style = MaterialTheme.typography.titleMedium)
                 Spacer(modifier = Modifier.height(8.dp))
                 if (paidSessionCount > 0) {
                     Text("%.2f €".format(globalPricePerSession), fontSize = 48.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
@@ -397,7 +403,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
         // Prix par activité
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("💳 Coût par séance (par activité)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Détail par activité", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 val paidActivities = activitiesDefs.filter { it.price > 0 }
@@ -460,7 +466,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("📊 Activités enregistrées", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Activités enregistrées", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(12.dp))
                 
                 if (activityCounts.isEmpty()) {
@@ -659,7 +665,7 @@ fun CalendarTab(viewModel: GymViewModel) {
         
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { currentMonth = currentMonth.minusMonths(1) }) {
-                Icon(Icons.Filled.KeyboardArrowLeft, contentDescription = "Mois précédent")
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Mois précédent")
             }
             Text(
                 currentMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.FRENCH)).replaceFirstChar { it.uppercase() },
@@ -667,7 +673,7 @@ fun CalendarTab(viewModel: GymViewModel) {
                 fontWeight = FontWeight.Bold
             )
             IconButton(onClick = { currentMonth = currentMonth.plusMonths(1) }) {
-                Icon(Icons.Filled.KeyboardArrowRight, contentDescription = "Mois suivant")
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Mois suivant")
             }
         }
         
@@ -867,7 +873,7 @@ fun SettingsTab(viewModel: GymViewModel) {
     ) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(20.dp)) {
-                Text("💳 Prix des abonnements", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Prix des abonnements", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 activitiesDefs.forEachIndexed { index, actDef ->
@@ -892,7 +898,12 @@ fun SettingsTab(viewModel: GymViewModel) {
                                 onClick = { viewModel.removeActivity(actDef.name) },
                                 modifier = Modifier.size(32.dp)
                             ) {
-                                Text("🗑️", fontSize = 14.sp)
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = "Supprimer",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                         
@@ -924,7 +935,9 @@ fun SettingsTab(viewModel: GymViewModel) {
                     onClick = { showAddActivityDialog = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("➕ Ajouter une activité")
+                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Ajouter une activité")
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -940,7 +953,7 @@ fun SettingsTab(viewModel: GymViewModel) {
         
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(20.dp)) {
-                Text("📅 Période de suivi (365 jours)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Période de suivi (365 jours)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedButton(onClick = { showStartDatePicker = true }, modifier = Modifier.fillMaxWidth()) {
                     Text("Date de début: " + (startDate?.format(dateFormatter) ?: "--"))
@@ -957,7 +970,7 @@ fun SettingsTab(viewModel: GymViewModel) {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("ℹ️ Comment ça marche ?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text("Comment ça marche ?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "1. Configure tes activités et leurs prix annuels\n" +
@@ -976,7 +989,7 @@ fun SettingsTab(viewModel: GymViewModel) {
         // Export / Import
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(20.dp)) {
-                Text("📦 Exporter / Importer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Exporter / Importer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "Sauvegarde tes données (séances + config) en JSON pour les restaurer plus tard ou les transférer.",
@@ -1027,13 +1040,13 @@ fun SettingsTab(viewModel: GymViewModel) {
                         onClick = { exportLauncher.launch("muscunombre_backup.json") },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("📤 Exporter")
+                        Text("Exporter")
                     }
                     OutlinedButton(
                         onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("📥 Importer")
+                        Text("Importer")
                     }
                 }
                 
@@ -1084,7 +1097,7 @@ fun SettingsTab(viewModel: GymViewModel) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("ℹ️", fontSize = 24.sp)
+                    Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(24.dp))
                     Spacer(modifier = Modifier.width(12.dp))
                     Text("À propos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
@@ -1105,7 +1118,7 @@ fun SettingsTab(viewModel: GymViewModel) {
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("🗑️ Réinitialiser toutes les données", fontWeight = FontWeight.Bold)
+                    Text("Réinitialiser toutes les données", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -1263,7 +1276,7 @@ fun EditActivityDialog(
                 OutlinedTextField(
                     value = emoji,
                     onValueChange = { emoji = it },
-                    label = { Text("Emoji") },
+                    label = { Text("Tag") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
