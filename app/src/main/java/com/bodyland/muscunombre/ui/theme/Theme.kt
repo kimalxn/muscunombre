@@ -14,77 +14,78 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
-// ──────────────────────────────────────────
-// "Clippy-Core Ligne Claire" — palette flat
-// Hergé × Microsoft Office 97 × mobile clean
-// ──────────────────────────────────────────
-object LC {
-    val Yellow   = Color(0xFFFFC107)
-    val Blue     = Color(0xFF1976D2)
-    val Red      = Color(0xFFD32F2F)
-    val BgBlue   = Color(0xFFBBDEFB)
-    val Black    = Color(0xFF000000)
-    val White    = Color(0xFFFFFFFF)
-    val LightYellow = Color(0xFFFFF9C4)
-    val DarkBlue = Color(0xFF0D47A1)
-}
+// Palette Revolut / Linear — minimaliste, propre, premium
+private val Blue600      = Color(0xFF2563EB)
+private val Blue50       = Color(0xFFEFF6FF)
+private val Blue100      = Color(0xFFDBEAFE)
+private val Slate900     = Color(0xFF0F172A)
+private val Slate700     = Color(0xFF334155)
+private val Slate500     = Color(0xFF64748B)
+private val Slate200     = Color(0xFFE2E8F0)
+private val Slate100     = Color(0xFFF1F5F9)
+private val Slate50      = Color(0xFFF8FAFC)
+private val Emerald600   = Color(0xFF059669)
+private val Emerald50    = Color(0xFFECFDF5)
+private val White        = Color(0xFFFFFFFF)
+
+// Dark palette
+private val BlueDark     = Color(0xFF60A5FA)
+private val Slate800     = Color(0xFF1E293B)
+private val Slate950     = Color(0xFF020617)
+private val EmeraldDark  = Color(0xFF34D399)
 
 private val LightColorScheme = lightColorScheme(
-    primary                = LC.Blue,
-    onPrimary              = LC.White,
-    primaryContainer       = LC.LightYellow,
-    onPrimaryContainer     = LC.Black,
-    secondary              = LC.Yellow,
-    onSecondary            = LC.Black,
-    secondaryContainer     = LC.LightYellow,
-    onSecondaryContainer   = LC.Black,
-    tertiary               = LC.Red,
-    onTertiary             = LC.White,
-    tertiaryContainer      = Color(0xFFFFCDD2),
-    onTertiaryContainer    = LC.Black,
-    background             = LC.BgBlue,
-    onBackground           = LC.Black,
-    surface                = LC.White,
-    onSurface              = LC.Black,
-    surfaceVariant         = LC.BgBlue,
-    onSurfaceVariant       = Color(0xFF333333),
-    outline                = LC.Black,
-    outlineVariant         = Color(0xFF555555),
-    error                  = LC.Red,
-    onError                = LC.White,
+    primary                = Blue600,
+    onPrimary              = White,
+    primaryContainer       = Blue50,
+    onPrimaryContainer     = Blue600,
+    secondary              = Slate500,
+    onSecondary            = White,
+    secondaryContainer     = Slate100,
+    onSecondaryContainer   = Slate700,
+    tertiary               = Emerald600,
+    onTertiary             = White,
+    tertiaryContainer      = Emerald50,
+    onTertiaryContainer    = Emerald600,
+    background             = Slate50,
+    onBackground           = Slate900,
+    surface                = White,
+    onSurface              = Slate900,
+    surfaceVariant         = Slate100,
+    onSurfaceVariant       = Slate500,
+    outline                = Slate200,
+    outlineVariant         = Slate100,
 )
 
-// Dark = same flat palette, darker bg
 private val DarkColorScheme = darkColorScheme(
-    primary                = Color(0xFF64B5F6),
-    onPrimary              = LC.Black,
-    primaryContainer       = Color(0xFF1565C0),
-    onPrimaryContainer     = LC.White,
-    secondary              = LC.Yellow,
-    onSecondary            = LC.Black,
-    secondaryContainer     = Color(0xFFF57F17),
-    onSecondaryContainer   = LC.Black,
-    tertiary               = Color(0xFFEF9A9A),
-    onTertiary             = LC.Black,
-    tertiaryContainer      = Color(0xFFB71C1C),
-    onTertiaryContainer    = LC.White,
-    background             = Color(0xFF0D1B2A),
-    onBackground           = LC.White,
-    surface                = Color(0xFF1A2740),
-    onSurface              = LC.White,
-    surfaceVariant         = Color(0xFF1E2D42),
-    onSurfaceVariant       = Color(0xFFCCCCCC),
-    outline                = LC.White,
-    outlineVariant         = Color(0xFF888888),
+    primary                = BlueDark,
+    onPrimary              = Slate950,
+    primaryContainer       = Color(0xFF1D3461),
+    onPrimaryContainer     = Blue100,
+    secondary              = Color(0xFF94A3B8),
+    onSecondary            = Slate950,
+    secondaryContainer     = Slate800,
+    onSecondaryContainer   = Color(0xFFCBD5E1),
+    tertiary               = EmeraldDark,
+    onTertiary             = Slate950,
+    tertiaryContainer      = Color(0xFF064E3B),
+    onTertiaryContainer    = Color(0xFFA7F3D0),
+    background             = Slate950,
+    onBackground           = Color(0xFFF1F5F9),
+    surface                = Slate800,
+    onSurface              = Color(0xFFF1F5F9),
+    surfaceVariant         = Color(0xFF1E293B),
+    onSurfaceVariant       = Color(0xFF94A3B8),
+    outline                = Color(0xFF334155),
+    outlineVariant         = Color(0xFF1E293B),
 )
 
-// Coins arrondis doux — style BD, pas trop anguleux ni trop circulaire
 val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(6.dp),
-    small      = RoundedCornerShape(8.dp),
-    medium     = RoundedCornerShape(10.dp),
-    large      = RoundedCornerShape(10.dp),
-    extraLarge = RoundedCornerShape(12.dp)
+    small      = RoundedCornerShape(10.dp),
+    medium     = RoundedCornerShape(14.dp),
+    large      = RoundedCornerShape(18.dp),
+    extraLarge = RoundedCornerShape(24.dp)
 )
 
 @Composable

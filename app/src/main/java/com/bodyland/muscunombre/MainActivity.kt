@@ -56,7 +56,6 @@ import com.bodyland.muscunombre.data.getActivityEmoji
 import com.bodyland.muscunombre.TIERS
 import com.bodyland.muscunombre.getTierForSessions
 import com.bodyland.muscunombre.getProgressInTier
-import com.bodyland.muscunombre.ui.theme.LC
 import com.bodyland.muscunombre.ui.theme.MuscuNombreTheme
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -132,10 +131,14 @@ fun OnboardingScreen(viewModel: GymViewModel) {
         )
         Spacer(modifier = Modifier.height(40.dp))
 
-        LcCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                LcSectionHeader("PÉRIODE DE SUIVI")
-                Column(modifier = Modifier.padding(20.dp)) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text("Période de suivi", style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(16.dp))
                 OutlinedButton(
                     onClick = { showStartDatePicker = true },
                     modifier = Modifier.fillMaxWidth(),
@@ -157,8 +160,7 @@ fun OnboardingScreen(viewModel: GymViewModel) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("Durée", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("365 jours", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = LC.Blue)
-                }
+                    Text("365 jours", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -191,23 +193,27 @@ fun MainAppContent(viewModel: GymViewModel) {
     Scaffold(
         topBar = {
             Column {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(LC.Blue)
-                        .statusBarsPadding()
-                        .height(56.dp)
-                        .padding(horizontal = 20.dp),
-                    contentAlignment = Alignment.Center
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 0.dp
                 ) {
-                    Text(
-                        "Muscunombre",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Black,
-                        color = LC.White
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .height(56.dp)
+                            .padding(horizontal = 20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Muscunombre",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
-                HorizontalDivider(color = LC.Black, thickness = 2.dp)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
             }
         },
         bottomBar = {
@@ -241,12 +247,11 @@ fun AppNavBar(currentPage: Int, onPageSelected: (Int) -> Unit) {
         Triple(Icons.Filled.Person,    "Profil",      2),
         Triple(Icons.Filled.Settings,  "Réglages",    3),
     )
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(LC.White)
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp
     ) {
-        HorizontalDivider(color = LC.Black, thickness = 2.dp)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -257,6 +262,18 @@ fun AppNavBar(currentPage: Int, onPageSelected: (Int) -> Unit) {
         ) {
             items.forEach { (icon, label, page) ->
                 val selected = currentPage == page
+                val iconColor by animateColorAsState(
+                    targetValue = if (selected) MaterialTheme.colorScheme.primary
+                                  else MaterialTheme.colorScheme.onSurfaceVariant,
+                    animationSpec = tween(200),
+                    label = "navIconColor"
+                )
+                val labelColor by animateColorAsState(
+                    targetValue = if (selected) MaterialTheme.colorScheme.primary
+                                  else MaterialTheme.colorScheme.onSurfaceVariant,
+                    animationSpec = tween(200),
+                    label = "navLabelColor"
+                )
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -269,72 +286,26 @@ fun AppNavBar(currentPage: Int, onPageSelected: (Int) -> Unit) {
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
                         Icon(
                             imageVector = icon,
                             contentDescription = label,
-                            tint = if (selected) LC.Blue else Color(0xFF555555),
+                            tint = iconColor,
                             modifier = Modifier.size(22.dp)
                         )
                         Text(
                             text = label,
                             fontSize = 10.sp,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (selected) LC.Black else Color(0xFF555555),
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = labelColor,
                             letterSpacing = 0.3.sp
-                        )
-                        // Yellow indicator
-                        Box(
-                            modifier = Modifier
-                                .size(width = 28.dp, height = 3.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(if (selected) LC.Yellow else Color.Transparent)
                         )
                     }
                 }
             }
         }
     }
-}
-
-// ──────────────────────────────────────────────────────────────
-// Ligne Claire helpers — flat white card + 2dp black border
-// ──────────────────────────────────────────────────────────────
-@Composable
-fun LcCard(
-    modifier: Modifier = Modifier,
-    shape: androidx.compose.ui.graphics.Shape = MaterialTheme.shapes.medium,
-    containerColor: Color = LC.White,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Card(
-        modifier = modifier.border(2.dp, LC.Black, shape),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        content = content
-    )
-}
-
-@Composable
-fun LcSectionHeader(title: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(LC.Yellow)
-            .border(width = 0.dp, color = Color.Transparent)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-    ) {
-        Text(
-            title,
-            style = MaterialTheme.typography.labelMedium,
-            color = LC.Black,
-            letterSpacing = 1.sp,
-            fontWeight = FontWeight.Black
-        )
-    }
-    HorizontalDivider(color = LC.Black, thickness = 1.5.dp)
 }
 
 @Composable
@@ -389,7 +360,11 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
         Spacer(modifier = Modifier.height(4.dp))
 
         // Stats row
-        LcCard(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -409,17 +384,26 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
         }
 
         // Pointer aujourd'hui
-        LcCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                LcSectionHeader("AUJOURD'HUI")
-                Column(modifier = Modifier.padding(16.dp)) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "AUJOURD'HUI",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(12.dp))
 
                 activitiesDefs.forEachIndexed { index, actDef ->
                     val activity = actDef.name
                     val alreadyLogged = todayActivities.contains(activity)
                     val isSelected = selectedActivities.contains(activity)
 
-                    if (index > 0) HorizontalDivider(color = LC.Black, thickness = 1.dp)
+                    if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
 
                     Row(
                         modifier = Modifier
@@ -446,14 +430,13 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                         }
                         // Toggle pill
                         val pillColor by animateColorAsState(
-                            targetValue = if (isSelected) LC.Yellow else Color(0xFFDDDDDD),
+                            targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                             animationSpec = tween(200), label = "pill"
                         )
                         Box(
                             modifier = Modifier
                                 .size(width = 44.dp, height = 26.dp)
                                 .clip(RoundedCornerShape(13.dp))
-                                .border(1.5.dp, LC.Black, RoundedCornerShape(13.dp))
                                 .background(pillColor),
                             contentAlignment = if (isSelected) Alignment.CenterEnd else Alignment.CenterStart
                         ) {
@@ -477,39 +460,33 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                             todayActivities.forEach { if (!selectedActivities.contains(it)) viewModel.removeTodaySession(it) }
                         }
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .border(2.dp, LC.Black, MaterialTheme.shapes.small),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
                     enabled = hasChanges,
                     shape = MaterialTheme.shapes.small,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = LC.Yellow,
-                        contentColor = LC.Black,
-                        disabledContainerColor = Color(0xFFEEEEEE),
-                        disabledContentColor = Color(0xFF888888)
-                    )
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Text("Valider", fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 0.sp)
+                    Text("Valider", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, letterSpacing = 0.sp)
                 }
-            }
             }
         }
 
         // Période
-        LcCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                LcSectionHeader("PÉRIODE")
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Début", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(startDate?.format(dateFormatter) ?: "--", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Fin", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(endDate?.format(dateFormatter) ?: "--", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                    }
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("PÉRIODE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Début", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(startDate?.format(dateFormatter) ?: "--", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Fin", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(endDate?.format(dateFormatter) ?: "--", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                 }
             }
         }
@@ -517,25 +494,28 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
         // Prix par activité (si configuré)
         val paidActivities = activitiesDefs.filter { it.price > 0 }
         if (paidActivities.isNotEmpty()) {
-            LcCard(modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    LcSectionHeader("COÛT PAR SÉANCE")
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        paidActivities.forEachIndexed { index, actDef ->
-                            val count = activityCounts[actDef.name] ?: 0
-                            val pricePerSession = if (count > 0) actDef.price / count else 0.0
-                            if (index > 0) HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = LC.Black, thickness = 1.dp)
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Column {
-                                    Text(actDef.emoji + "  " + actDef.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                                    Text("$count séances · ${actDef.price.toInt()}€/an", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                Text(
-                                    if (count > 0) "%.2f €".format(pricePerSession) else "-- €",
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (count > 0) LC.Blue else Color(0xFF555555)
-                                )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("COÛT PAR SÉANCE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    paidActivities.forEachIndexed { index, actDef ->
+                        val count = activityCounts[actDef.name] ?: 0
+                        val pricePerSession = if (count > 0) actDef.price / count else 0.0
+                        if (index > 0) HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column {
+                                Text(actDef.emoji + "  " + actDef.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                                Text("$count séances · ${actDef.price.toInt()}€/an", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
+                            Text(
+                                if (count > 0) "%.2f €".format(pricePerSession) else "-- €",
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (count > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -543,55 +523,53 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
         }
 
         // Progression tier
-        LcCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(LC.Yellow)
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("NIVEAU", style = MaterialTheme.typography.labelMedium, color = LC.Black, letterSpacing = 1.sp, fontWeight = FontWeight.Black)
-                    Text(currentTier.name, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Color(currentTier.colorHex))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("NIVEAU", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
+                    Text(currentTier.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Color(currentTier.colorHex))
                 }
-                HorizontalDivider(color = LC.Black, thickness = 1.5.dp)
-                Column(modifier = Modifier.padding(16.dp)) {
-                    LinearProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-                        color = Color(currentTier.colorHex),
-                        trackColor = LC.BgBlue
+                Spacer(modifier = Modifier.height(10.dp))
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                    color = Color(currentTier.colorHex),
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                if (currentTier.tier < 7) {
+                    val nextTier = TIERS[currentTier.tier]
+                    Text(
+                        "${currentTier.maxSessions - sessionCount + 1} séances avant ${nextTier.name}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    if (currentTier.tier < 7) {
-                        val nextTier = TIERS[currentTier.tier]
-                        Text(
-                            "${currentTier.maxSessions - sessionCount + 1} séances avant ${nextTier.name}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        Text("Niveau maximum atteint", style = MaterialTheme.typography.bodySmall, color = LC.Red)
-                    }
+                } else {
+                    Text("Niveau maximum atteint", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
                 }
             }
         }
 
         // Activités enregistrées
         if (activityCounts.isNotEmpty()) {
-            LcCard(modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    LcSectionHeader("ACTIVITÉS")
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        activityCounts.entries.sortedByDescending { it.value }.forEachIndexed { index, (activity, count) ->
-                            if (index > 0) HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = LC.Black, thickness = 1.dp)
-                            val emoji = getActivityEmoji(activity, activitiesDefs)
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text("$emoji  $activity", style = MaterialTheme.typography.bodyMedium)
-                                Text("$count", fontWeight = FontWeight.Black, fontSize = 15.sp, color = LC.Blue)
-                            }
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("ACTIVITÉS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    activityCounts.entries.sortedByDescending { it.value }.forEachIndexed { index, (activity, count) ->
+                        if (index > 0) HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                        val emoji = getActivityEmoji(activity, activitiesDefs)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("$emoji  $activity", style = MaterialTheme.typography.bodyMedium)
+                            Text("$count", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
@@ -600,25 +578,28 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
 
         // Compte rendu sur la période
         if (startDate != null && endDate != null && activityCounts.isNotEmpty()) {
-            LcCard(modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    LcSectionHeader("COMPTE RENDU")
-                    Column(modifier = Modifier.padding(16.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("COMPTE RENDU", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        "Entre le ${startDate?.format(dateFormatter) ?: "--"} et le ${endDate?.format(dateFormatter) ?: "--"}, tu as fait :",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    activityCounts.entries.sortedByDescending { it.value }.forEach { (activity, count) ->
+                        val suffix = if (count > 1) "s" else ""
+                        val emoji = getActivityEmoji(activity, activitiesDefs)
                         Text(
-                            "Entre le ${startDate?.format(dateFormatter) ?: "--"} et le ${endDate?.format(dateFormatter) ?: "--"}, tu as fait :",
+                            "· $count séance$suffix de $activity $emoji",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            modifier = Modifier.padding(top = 3.dp)
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        activityCounts.entries.sortedByDescending { it.value }.forEach { (activity, count) ->
-                            val suffix = if (count > 1) "s" else ""
-                            val emoji = getActivityEmoji(activity, activitiesDefs)
-                            Text(
-                                "· $count séance$suffix de $activity $emoji",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(top = 3.dp)
-                            )
-                        }
                     }
                 }
             }
@@ -629,8 +610,8 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
 @Composable
 private fun StatCell(value: String, label: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = LC.Black)
-        Text(label, style = MaterialTheme.typography.bodySmall, color = Color(0xFF555555))
+        Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -650,7 +631,11 @@ fun UserTab(viewModel: GymViewModel) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // Tier actuel - header
-        LcCard(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -660,7 +645,7 @@ fun UserTab(viewModel: GymViewModel) {
                 Text(
                     currentTier.name,
                     style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Black,
+                    fontWeight = FontWeight.Bold,
                     color = tierColor
                 )
                 Text(
@@ -673,61 +658,60 @@ fun UserTab(viewModel: GymViewModel) {
                 Text(
                     "$sessionCount",
                     style = MaterialTheme.typography.displayMedium,
-                    fontWeight = FontWeight.Black,
-                    color = LC.Black
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-                Text("séances", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF555555))
+                Text("séances", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
         // Progression vers le tier suivant
         if (currentTier.tier < 7) {
             val nextTier = TIERS[currentTier.tier]
-            LcCard(modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(LC.Yellow)
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("PROGRESSION", style = MaterialTheme.typography.labelMedium, color = LC.Black, letterSpacing = 1.sp, fontWeight = FontWeight.Black)
-                        Text(nextTier.emoji + "  " + nextTier.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("PROGRESSION", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
+                        Text(nextTier.emoji + "  " + nextTier.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     }
-                    HorizontalDivider(color = LC.Black, thickness = 1.5.dp)
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        LinearProgressIndicator(
-                            progress = { progress },
-                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-                            color = tierColor,
-                            trackColor = LC.BgBlue
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        val currentProgress = sessionCount - currentTier.minSessions + 1
-                        val tierRange = currentTier.maxSessions - currentTier.minSessions + 1
-                        val remaining = currentTier.maxSessions - sessionCount + 1
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("$currentProgress / $tierRange", style = MaterialTheme.typography.bodySmall, color = Color(0xFF555555))
-                            Text("$remaining restantes", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = tierColor)
-                        }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                        color = tierColor,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val currentProgress = sessionCount - currentTier.minSessions + 1
+                    val tierRange = currentTier.maxSessions - currentTier.minSessions + 1
+                    val remaining = currentTier.maxSessions - sessionCount + 1
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("$currentProgress / $tierRange", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("$remaining restantes", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = tierColor)
                     }
                 }
             }
         }
 
         // Liste des tiers
-        Text("Tous les niveaux", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, modifier = Modifier.padding(top = 8.dp, start = 4.dp))
+        Text("Tous les niveaux", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp, start = 4.dp))
 
-        LcCard(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 TIERS.forEachIndexed { index, tier ->
                     val isCurrentTier = tier.tier == currentTier.tier
                     val isUnlocked = sessionCount >= tier.minSessions
                     val tc = Color(tier.colorHex)
 
-                    if (index > 0) HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = LC.Black, thickness = 1.dp)
+                    if (index > 0) HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
 
                     Row(
                         modifier = Modifier
@@ -755,11 +739,10 @@ fun UserTab(viewModel: GymViewModel) {
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(4.dp))
-                                            .border(1.5.dp, LC.Black, RoundedCornerShape(4.dp))
-                                            .background(LC.Yellow)
+                                            .background(tc.copy(alpha = 0.15f))
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
-                                        Text("vous", fontSize = 10.sp, fontWeight = FontWeight.Black, color = LC.Black)
+                                        Text("vous", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = tc)
                                     }
                                 }
                             }
@@ -767,9 +750,9 @@ fun UserTab(viewModel: GymViewModel) {
                             Text(rangeText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (!isUnlocked) 0.4f else 1f))
                         }
                         if (isUnlocked && !isCurrentTier) {
-                            Text("✓", fontWeight = FontWeight.Black, color = LC.Blue, fontSize = 16.sp)
+                            Text("✓", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary, fontSize = 16.sp)
                         } else if (!isUnlocked) {
-                            Text("·", color = Color(0xFF888888), fontSize = 20.sp)
+                            Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f), fontSize = 20.sp)
                         }
                     }
                 }
@@ -800,7 +783,11 @@ fun CalendarTab(viewModel: GymViewModel) {
         val thisMonthCount = allSessions.count { YearMonth.from(it.date) == YearMonth.now() }
 
         // Stats row
-        LcCard(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -1073,10 +1060,15 @@ fun SettingsTab(viewModel: GymViewModel) {
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 20.dp, bottom = 24.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        LcCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                LcSectionHeader("ACTIVITÉS")
-                Column(modifier = Modifier.padding(16.dp)) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("ACTIVITÉS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
+                Spacer(modifier = Modifier.height(12.dp))
+                
                 activitiesDefs.forEachIndexed { index, actDef ->
                     key(actDef.name) {
                         var priceText by remember(actDef.price) { 
@@ -1142,55 +1134,64 @@ fun SettingsTab(viewModel: GymViewModel) {
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider(color = LC.Black, thickness = 1.dp)
+                HorizontalDivider()
                 Spacer(modifier = Modifier.height(12.dp))
                 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("TOTAL ANNUEL:", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Text(subscriptionPrice.toInt().toString() + "€", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = LC.Blue)
-                }
-                }
-            }
-        }
-        
-        LcCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                LcSectionHeader("PÉRIODE DE SUIVI")
-                Column(modifier = Modifier.padding(16.dp)) {
-                    OutlinedButton(onClick = { showStartDatePicker = true }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small) {
-                        Text("Date de début: " + (startDate?.format(dateFormatter) ?: "--"))
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("Date de fin: " + (endDate?.format(dateFormatter) ?: "--"), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Durée: 365 jours (automatique)", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), color = LC.Blue)
+                    Text(subscriptionPrice.toInt().toString() + "€", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
         
-        LcCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                LcSectionHeader("COMMENT ÇA MARCHE")
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "1. Configure tes activités et leurs prix annuels\n" +
-                        "2. Définis ta date de début (fin = +365 jours)\n" +
-                        "3. Pointe tes activités dans 'Suivi' ou 'Calendrier'\n" +
-                        "4. Les activités à 0€ sont gratuites\n" +
-                        "5. Le coût par séance est calculé par activité et globalement",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("PÉRIODE DE SUIVI", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(onClick = { showStartDatePicker = true }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small) {
+                    Text("Date de début: " + (startDate?.format(dateFormatter) ?: "--"))
                 }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("Date de fin: " + (endDate?.format(dateFormatter) ?: "--"), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Durée: 365 jours (automatique)", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primary)
+            }
+        }
+        
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("COMMENT ÇA MARCHE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "1. Configure tes activités et leurs prix annuels\n" +
+                    "2. Définis ta date de début (fin = +365 jours)\n" +
+                    "3. Pointe tes activités dans 'Suivi' ou 'Calendrier'\n" +
+                    "4. Les activités à 0€ sont gratuites\n" +
+                    "5. Le coût par séance est calculé par activité et globalement",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
         
         Spacer(modifier = Modifier.weight(1f))
         
-        LcCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                LcSectionHeader("EXPORT / IMPORT")
-                Column(modifier = Modifier.padding(16.dp)) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("EXPORT / IMPORT", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "Sauvegarde tes données (séances + config) en JSON.",
                     style = MaterialTheme.typography.bodySmall,
@@ -1271,7 +1272,7 @@ fun SettingsTab(viewModel: GymViewModel) {
                                     showImportDialog = false
                                     pendingImportJson = null
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = LC.Blue)
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                             ) { Text("Oui, importer") }
                         },
                         dismissButton = {
@@ -1281,40 +1282,41 @@ fun SettingsTab(viewModel: GymViewModel) {
                         }
                     )
                 }
-                }
             }
         }
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        LcCard(modifier = Modifier.fillMaxWidth().clickable { showAboutDialog = true }) {
+        Card(
+            modifier = Modifier.fillMaxWidth().clickable { showAboutDialog = true },
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("À propos", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-                Text("›", fontSize = 20.sp, color = LC.Black)
+                Text("À propos", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                Text("›", fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        LcCard(
+        Card(
             modifier = Modifier.fillMaxWidth(),
-            containerColor = Color(0xFFFFEBEE)
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFDC2626).copy(alpha = 0.06f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Button(
                     onClick = { showResetDialog = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(46.dp)
-                        .border(2.dp, LC.Black, MaterialTheme.shapes.small),
-                    colors = ButtonDefaults.buttonColors(containerColor = LC.Red),
+                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
                     shape = MaterialTheme.shapes.small
                 ) {
-                    Text("Réinitialiser toutes les données", fontWeight = FontWeight.Black, fontSize = 14.sp)
+                    Text("Réinitialiser toutes les données", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 }
             }
         }
@@ -1330,7 +1332,7 @@ fun SettingsTab(viewModel: GymViewModel) {
             confirmButton = {
                 Button(
                     onClick = { viewModel.resetAllData(); showResetDialog = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = LC.Red)
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
                 ) { Text("OUI, supprimer") }
             },
             dismissButton = {
