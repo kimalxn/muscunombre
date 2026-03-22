@@ -36,7 +36,8 @@ data class GymSession(
     val id: Long = 0,
     val date: LocalDate,
     val activity: String = "Workout",
-    val loggedAt: Long = System.currentTimeMillis()
+    val loggedAt: Long = System.currentTimeMillis(),
+    val note: String = ""
 )
 
 @Dao
@@ -79,6 +80,12 @@ interface GymSessionDao {
     
     @Query("DELETE FROM gym_sessions WHERE date = :date AND activity = :activity")
     suspend fun deleteSessionByDateAndActivity(date: LocalDate, activity: String)
+    
+    @Query("UPDATE gym_sessions SET note = :note WHERE date = :date")
+    suspend fun updateNoteForDate(date: LocalDate, note: String)
+    
+    @Query("SELECT note FROM gym_sessions WHERE date = :date LIMIT 1")
+    suspend fun getNoteForDate(date: LocalDate): String?
 }
 
 class Converters {
@@ -93,7 +100,7 @@ class Converters {
     }
 }
 
-@Database(entities = [GymSession::class], version = 4, exportSchema = false)
+@Database(entities = [GymSession::class], version = 5, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class GymDatabase : RoomDatabase() {
     abstract fun gymSessionDao(): GymSessionDao
@@ -108,6 +115,12 @@ abstract class GymDatabase : RoomDatabase() {
             }
         }
         
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE gym_sessions ADD COLUMN note TEXT NOT NULL DEFAULT ''")
+            }
+        }
+        
         fun getDatabase(context: android.content.Context): GymDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -115,7 +128,7 @@ abstract class GymDatabase : RoomDatabase() {
                     GymDatabase::class.java,
                     "gym_database"
                 )
-                .addMigrations(MIGRATION_3_4)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

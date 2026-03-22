@@ -223,6 +223,14 @@ class GymViewModel(private val context: Context) : ViewModel() {
         }
     }
     
+    // Supprimer une activité pour aujourd'hui
+    fun removeTodaySession(activity: String) {
+        viewModelScope.launch {
+            val today = LocalDate.now()
+            sessionDao.deleteSessionByDateAndActivity(today, activity)
+        }
+    }
+    
     // Supprimer une activité spécifique d'une date
     fun removeActivityOnDate(date: LocalDate, activity: String) {
         viewModelScope.launch {
@@ -259,6 +267,18 @@ class GymViewModel(private val context: Context) : ViewModel() {
         return sessionDao.getSessionsByDateSync(date).map { it.activity }
     }
     
+    // Mettre à jour la note pour une date (note par jour)
+    fun updateNoteForDate(date: LocalDate, note: String) {
+        viewModelScope.launch {
+            sessionDao.updateNoteForDate(date, note)
+        }
+    }
+    
+    // Obtenir la note pour une date
+    suspend fun getNoteForDate(date: LocalDate): String {
+        return sessionDao.getNoteForDate(date) ?: ""
+    }
+    
     // Exporter toutes les données en JSON (v2)
     suspend fun exportDataToJson(): String {
         val sessions = sessionDao.getAllSessions().first()
@@ -288,6 +308,7 @@ class GymViewModel(private val context: Context) : ViewModel() {
                         put("date", session.date.toString())
                         put("activity", session.activity)
                         put("loggedAt", session.loggedAt)
+                        if (session.note.isNotEmpty()) put("note", session.note)
                     })
                 }
             })
@@ -355,7 +376,8 @@ class GymViewModel(private val context: Context) : ViewModel() {
                 GymSession(
                     date = LocalDate.parse(sessionObj.getString("date")),
                     activity = sessionObj.getString("activity"),
-                    loggedAt = sessionObj.optLong("loggedAt", System.currentTimeMillis())
+                    loggedAt = sessionObj.optLong("loggedAt", System.currentTimeMillis()),
+                    note = sessionObj.optString("note", "")
                 )
             }
             sessionDao.insertSessions(sessions)
