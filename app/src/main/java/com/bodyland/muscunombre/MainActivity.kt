@@ -313,6 +313,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
     val startDate by viewModel.startDate.collectAsState()
     val endDate by viewModel.endDate.collectAsState()
     val allSessions by viewModel.allSessions.collectAsState()
+    val sessionsInPeriod by viewModel.sessionsInPeriod.collectAsState()
 
     val scope = rememberCoroutineScope()
     val today = LocalDate.now()
@@ -329,9 +330,12 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
     val daysRemaining = endDate?.let { java.time.temporal.ChronoUnit.DAYS.between(today, it).toInt().coerceAtLeast(0) } ?: 0
     val totalDays = if (startDate != null && endDate != null) java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate).toInt() else 0
     val daysPassed = startDate?.let { java.time.temporal.ChronoUnit.DAYS.between(it, today).toInt().coerceAtLeast(0) } ?: 0
-    val activityCounts = allSessions.groupingBy { it.activity }.eachCount()
+    // Counts scoped to the active period (for stats, cost, summary)
+    val activityCounts = sessionsInPeriod.groupingBy { it.activity }.eachCount()
+    val periodSessionCount = sessionsInPeriod.size
     val paidSessionCount = activitiesDefs.filter { it.price > 0 }.sumOf { activityCounts[it.name] ?: 0 }
     val globalPricePerSession = if (paidSessionCount > 0 && subscriptionPrice > 0) subscriptionPrice / paidSessionCount else 0.0
+    // Tier uses all-time session count
     val currentTier = getTierForSessions(sessionCount)
     val progress = getProgressInTier(sessionCount, currentTier)
 
@@ -351,7 +355,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
         )
         if (startDate != null) {
             Text(
-                "Jour $daysPassed · $daysRemaining jours restants",
+                "Jour $daysPassed · $daysRemaining ${if (daysRemaining > 1) "jours restants" else "jour restant"}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -369,7 +373,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                 modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                StatCell(value = "$sessionCount", label = "séances")
+                StatCell(value = "$periodSessionCount", label = "séances")
                 VerticalDivider(modifier = Modifier.height(36.dp))
                 StatCell(
                     value = if (globalPricePerSession > 0) "%.2f€".format(globalPricePerSession) else "--",
@@ -698,7 +702,7 @@ fun UserTab(viewModel: GymViewModel) {
                     if (endDate != null && daysRemaining > 0) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            "$daysRemaining jours avant la fin de période",
+                            "$daysRemaining ${if (daysRemaining > 1) "jours" else "jour"} avant la fin de période",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -746,7 +750,7 @@ fun UserTab(viewModel: GymViewModel) {
                                             .background(tc.copy(alpha = 0.15f))
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
-                                        Text("vous", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = tc)
+                                        Text("toi", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = tc)
                                     }
                                 }
                             }
@@ -1300,12 +1304,9 @@ fun SettingsTab(viewModel: GymViewModel) {
                 Text("COMMENT ÇA MARCHE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "1. Ajoute tes activités sportives et leurs coûts annuels dans Activités\n" +
-                    "2. Définis ta période de suivi (début + fin, ou 365 jours auto)\n" +
-                    "3. Dans Suivi, pointe tes activités du jour et consulte stats + coût\n" +
-                    "4. Dans Calendrier, accesse n'importe quel jour pour pointer une séance passée ou future, ou juste écrire une note\n" +
-                    "5. Dans Profil, suis ta progression de niveau (Niveau 7 → 1) et ton coût par séance\n" +
-                    "6. Les activités à 0 € sont gratuites et n'affectent pas le coût moyen",
+                    "1. Ajoute tes activités et définis ta période dans Réglages\n" +
+                    "2. Pointe tes séances du jour dans Suivi\n" +
+                    "3. Consulte ton calendrier, tes stats et ton niveau",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
