@@ -17,9 +17,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -226,7 +223,7 @@ fun MainAppContent(viewModel: GymViewModel) {
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize().padding(paddingValues),
-            userScrollEnabled = pagerState.currentPage != 1,
+            userScrollEnabled = true,
             beyondBoundsPageCount = 1
         ) { page ->
             when (page) {
@@ -319,7 +316,10 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
 
     val scope = rememberCoroutineScope()
     val today = LocalDate.now()
-    val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    val dateFormatter = DateTimeFormatter.ofPattern("dd MMMM yyyy", Locale.FRENCH)
+    fun LocalDate.toFr(): String = format(dateFormatter).split(" ").let {
+        "${it[0]} ${it[1].replaceFirstChar { c -> c.titlecase() }} ${it[2]}"
+    }
     val dayNameFormatter = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.FRENCH)
 
     var selectedActivities by remember { mutableStateOf(setOf<String>()) }
@@ -456,8 +456,9 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                 Button(
                     onClick = {
                         scope.launch {
-                            selectedActivities.forEach { if (!todayActivities.contains(it)) viewModel.addTodaySession(it) }
-                            todayActivities.forEach { if (!selectedActivities.contains(it)) viewModel.removeTodaySession(it) }
+                            val today = LocalDate.now()
+                            selectedActivities.forEach { if (!todayActivities.contains(it)) viewModel.addSessionSuspend(today, it) }
+                            todayActivities.forEach { if (!selectedActivities.contains(it)) viewModel.removeActivitySuspend(today, it) }
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -481,12 +482,12 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Début", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(startDate?.format(dateFormatter) ?: "--", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Text(startDate?.toFr() ?: "--", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Fin", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(endDate?.format(dateFormatter) ?: "--", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Text(endDate?.toFr() ?: "--", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                 }
             }
         }
@@ -531,7 +532,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("NIVEAU", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
-                    Text(currentTier.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Color(currentTier.colorHex))
+                    Text(currentTier.displayName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Color(currentTier.colorHex))
                 }
                 Spacer(modifier = Modifier.height(10.dp))
                 LinearProgressIndicator(
@@ -544,7 +545,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                 if (currentTier.tier < 7) {
                     val nextTier = TIERS[currentTier.tier]
                     Text(
-                        "${currentTier.maxSessions - sessionCount + 1} séances avant ${nextTier.name}",
+                        "${currentTier.maxSessions - sessionCount + 1} séances avant ${nextTier.displayName}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -587,7 +588,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                     Text("COMPTE RENDU", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        "Entre le ${startDate?.format(dateFormatter) ?: "--"} et le ${endDate?.format(dateFormatter) ?: "--"}, tu as fait :",
+                        "Entre le ${startDate?.toFr() ?: "--"} et le ${endDate?.toFr() ?: "--"}, tu as fait :",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -618,9 +619,12 @@ private fun StatCell(value: String, label: String) {
 @Composable
 fun UserTab(viewModel: GymViewModel) {
     val sessionCount by viewModel.sessionCount.collectAsState()
+    val endDate by viewModel.endDate.collectAsState()
     val currentTier = getTierForSessions(sessionCount)
     val progress = getProgressInTier(sessionCount, currentTier)
     val tierColor = Color(currentTier.colorHex)
+    val today = LocalDate.now()
+    val daysRemaining = endDate?.let { java.time.temporal.ChronoUnit.DAYS.between(today, it).toInt().coerceAtLeast(0) } ?: 0
 
     Column(
         modifier = Modifier
@@ -640,10 +644,8 @@ fun UserTab(viewModel: GymViewModel) {
                 modifier = Modifier.fillMaxWidth().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(currentTier.emoji, fontSize = 52.sp)
-                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    currentTier.name,
+                    currentTier.displayName,
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = tierColor
@@ -676,7 +678,7 @@ fun UserTab(viewModel: GymViewModel) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("PROGRESSION", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
-                        Text(nextTier.emoji + "  " + nextTier.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        Text(nextTier.displayName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     LinearProgressIndicator(
@@ -692,6 +694,14 @@ fun UserTab(viewModel: GymViewModel) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("$currentProgress / $tierRange", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("$remaining restantes", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = tierColor)
+                    }
+                    if (endDate != null && daysRemaining > 0) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            "$daysRemaining jours avant la fin de période",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -720,16 +730,10 @@ fun UserTab(viewModel: GymViewModel) {
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            tier.emoji,
-                            fontSize = 24.sp,
-                            modifier = Modifier.width(40.dp),
-                            color = if (!isUnlocked) Color.Unspecified.copy(alpha = 0.3f) else Color.Unspecified
-                        )
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    tier.name,
+                                    tier.displayName,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = if (isCurrentTier) FontWeight.Bold else FontWeight.Medium,
                                     color = if (!isUnlocked) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f) else tc
@@ -764,7 +768,6 @@ fun UserTab(viewModel: GymViewModel) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarTab(viewModel: GymViewModel) {
-    val sessionsInPeriod by viewModel.sessionsInPeriod.collectAsState()
     val sessionCount by viewModel.sessionCount.collectAsState()
     val allSessions by viewModel.allSessions.collectAsState()
     val activitiesDefs by viewModel.activities.collectAsState()
@@ -774,6 +777,7 @@ fun CalendarTab(viewModel: GymViewModel) {
     
     // Utiliser allSessions pour l'affichage du calendrier (pas limité à la période)
     val sessionsByDate = allSessions.groupBy { it.date }
+    val datesWithNotes by viewModel.datesWithStandaloneNotes.collectAsState()
     
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 20.dp)) {
         val today = LocalDate.now()
@@ -841,20 +845,18 @@ fun CalendarTab(viewModel: GymViewModel) {
             if (dayOffset in 0 until daysInMonth) currentMonth.atDay(dayOffset + 1) else null
         }
         
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(7),
+        // Grille calendrier (Column+Row au lieu de LazyVerticalGrid pour que la zone vide
+        // en dessous ne consomme pas les swipes dédiés à la navigation d'onglets)
+        Column(
             modifier = Modifier
-                .weight(1f)
+                .fillMaxWidth()
                 .pointerInput(currentMonth) {
                     var totalDrag = 0f
                     detectHorizontalDragGestures(
                         onDragStart = { totalDrag = 0f },
                         onDragEnd = {
-                            if (totalDrag > 100f) {
-                                currentMonth = currentMonth.minusMonths(1)
-                            } else if (totalDrag < -100f) {
-                                currentMonth = currentMonth.plusMonths(1)
-                            }
+                            if (totalDrag > 100f) currentMonth = currentMonth.minusMonths(1)
+                            else if (totalDrag < -100f) currentMonth = currentMonth.plusMonths(1)
                         },
                         onHorizontalDrag = { change, dragAmount ->
                             change.consume()
@@ -862,29 +864,36 @@ fun CalendarTab(viewModel: GymViewModel) {
                         }
                     )
                 },
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            items(days) { date ->
-                val sessions = date?.let { sessionsByDate[it] } ?: emptyList()
-                val isGymDay = sessions.isNotEmpty()
-                val isFuture = date?.isAfter(today) == true
-                
-                CalendarDay(
-                    date = date,
-                    isGymDay = isGymDay,
-                    activities = sessions.map { it.activity },
-                    activityDefs = activitiesDefs,
-                    isToday = date == today,
-                    isFuture = isFuture,
-                    onClick = { 
-                        if (date != null) {
-                            selectedDateForActivity = date
+            days.chunked(7).forEach { week ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    week.forEach { date ->
+                        val sessions = date?.let { sessionsByDate[it] } ?: emptyList()
+                        val isGymDay = sessions.isNotEmpty()
+                        val isFuture = date?.isAfter(today) == true
+                        val hasNote = date != null && datesWithNotes.contains(date)
+                        Box(modifier = Modifier.weight(1f)) {
+                            CalendarDay(
+                                date = date,
+                                isGymDay = isGymDay,
+                                activities = sessions.map { it.activity },
+                                activityDefs = activitiesDefs,
+                                isToday = date == today,
+                                isFuture = isFuture,
+                                hasNote = hasNote,
+                                onClick = { if (date != null) selectedDateForActivity = date }
+                            )
                         }
                     }
-                )
+                }
             }
         }
+        // Zone vide = propagée au HorizontalPager pour swipe vers autre onglet
+        Spacer(modifier = Modifier.weight(1f))
     }
     
     selectedDateForActivity?.let { date ->
@@ -913,9 +922,11 @@ fun MultiActivitySelectionDialog(
     val today = LocalDate.now()
     val isFutureDate = date.isAfter(today)
     
-    // Charger la note existante
+    // Charger la note existante (session note OU note indépendante)
     LaunchedEffect(date) {
-        noteText = viewModel.getNoteForDate(date)
+        val sessionNote = viewModel.getNoteForDate(date)
+        val standaloneNote = viewModel.getStandaloneNoteForDate(date)
+        noteText = sessionNote.ifEmpty { standaloneNote }
     }
     
     AlertDialog(
@@ -954,7 +965,7 @@ fun MultiActivitySelectionDialog(
                     value = noteText,
                     onValueChange = { noteText = it },
                     label = { Text(if (isFutureDate) "Notes / prévision" else "Notes") },
-                    placeholder = { Text(if (isFutureDate) "Ex: Objectifs, programme prévu..." else "Ex: Bonne séance, fatigue...") },
+                    placeholder = { Text(if (isFutureDate) "Objectifs, programme..." else "Ressenti, remarques...") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     maxLines = 4
@@ -965,21 +976,25 @@ fun MultiActivitySelectionDialog(
             Button(
                 onClick = {
                     scope.launch {
-                        // Supprimer les activités désélectionnées
+                        // Supprimer les activités désélectionnées (suspend → ordonné)
                         existingActivities.forEach { activity ->
                             if (!selectedActivities.contains(activity)) {
-                                viewModel.removeActivityOnDate(date, activity)
+                                viewModel.removeActivitySuspend(date, activity)
                             }
                         }
-                        // Ajouter les nouvelles activités
+                        // Ajouter les nouvelles activités (suspend → avant la note)
                         selectedActivities.forEach { activity ->
                             if (!existingActivities.contains(activity)) {
-                                viewModel.addSessionOnDate(date, activity)
+                                viewModel.addSessionSuspend(date, activity)
                             }
                         }
-                        // Sauvegarder la note
+                        // Sauvegarder la note après insertion des séances
                         if (selectedActivities.isNotEmpty()) {
-                            viewModel.updateNoteForDate(date, noteText)
+                            viewModel.updateNoteSuspend(date, noteText)
+                            viewModel.saveStandaloneNote(date, "") // nettoyer la note standalone
+                        } else {
+                            // Pas d'activité → sauvegarder comme note indépendante
+                            viewModel.saveStandaloneNote(date, noteText)
                         }
                         onDismiss()
                     }
@@ -1002,15 +1017,17 @@ fun CalendarDay(
     activityDefs: List<ActivityDefinition> = emptyList(),
     isToday: Boolean,
     isFuture: Boolean,
+    hasNote: Boolean = false,
     onClick: () -> Unit
 ) {
     val backgroundColor = when {
         isGymDay && isFuture -> Color(0xFF2563EB).copy(alpha = 0.35f)
         isGymDay -> Color(0xFF2563EB)
         isToday -> MaterialTheme.colorScheme.primaryContainer
+        hasNote -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)
         else -> Color.Transparent
     }
-    
+
     val textColor = when {
         isGymDay && isFuture -> Color.White.copy(alpha = 0.7f)
         isGymDay -> Color.White
@@ -1035,6 +1052,14 @@ fun CalendarDay(
                 if (isGymDay && activities.isNotEmpty()) {
                     val displayEmoji = if (activities.size > 1) "🏆" else getActivityEmoji(activities.first(), activityDefs)
                     Text(displayEmoji, fontSize = 10.sp)
+                } else if (hasNote && !isGymDay) {
+                    // Point discret indiquant une note standalone
+                    Box(
+                        modifier = Modifier
+                            .size(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
+                    )
                 }
             }
         }
@@ -1049,12 +1074,18 @@ fun SettingsTab(viewModel: GymViewModel) {
     val endDate by viewModel.endDate.collectAsState()
     
     var showStartDatePicker by remember { mutableStateOf(false) }
+    var showEndDatePicker by remember { mutableStateOf(false) }
+    var autoEnd365 by remember { mutableStateOf(true) }
     var showResetDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
-    var showAddActivityDialog by remember { mutableStateOf(false) }
+    var pendingDeleteName by remember { mutableStateOf<String?>(null) }
+    var addingNew by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf("") }
+    var newEmoji by remember { mutableStateOf("\uD83C\uDFC3") }
+    var newPriceText by remember { mutableStateOf("") }
     var editingActivity by remember { mutableStateOf<ActivityDefinition?>(null) }
-    
-    val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+
+    val dateFormatter = DateTimeFormatter.ofPattern("dd MMMM yyyy", Locale.FRENCH)
     
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 20.dp, bottom = 24.dp).verticalScroll(rememberScrollState()),
@@ -1087,16 +1118,26 @@ fun SettingsTab(viewModel: GymViewModel) {
                                     .clickable { editingActivity = actDef }
                                     .weight(1f)
                             )
-                            IconButton(
-                                onClick = { viewModel.removeActivity(actDef.name) },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    Icons.Filled.Delete,
-                                    contentDescription = "Supprimer",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            if (pendingDeleteName == actDef.name) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    TextButton(
+                                        onClick = { pendingDeleteName = null },
+                                        contentPadding = PaddingValues(horizontal = 4.dp)
+                                    ) { Text("Annuler", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                    IconButton(
+                                        onClick = { viewModel.removeActivity(actDef.name); pendingDeleteName = null },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Filled.Delete, contentDescription = "Confirmer suppression", modifier = Modifier.size(18.dp), tint = Color(0xFFDC2626))
+                                    }
+                                }
+                            } else {
+                                IconButton(
+                                    onClick = { pendingDeleteName = actDef.name },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Filled.Delete, contentDescription = "Supprimer", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         }
                         
@@ -1124,13 +1165,64 @@ fun SettingsTab(viewModel: GymViewModel) {
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                OutlinedButton(
-                    onClick = { showAddActivityDialog = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Ajouter une activité")
+                if (addingNew) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("NOUVELLE ACTIVITÉ", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, letterSpacing = 1.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = newEmoji,
+                            onValueChange = { newEmoji = it },
+                            label = { Text("Tag") },
+                            modifier = Modifier.width(76.dp),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = newName,
+                            onValueChange = { newName = it },
+                            label = { Text("Nom") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = newPriceText,
+                        onValueChange = { if (it.isEmpty() || it.all { c -> c.isDigit() }) newPriceText = it },
+                        label = { Text("Prix annuel") },
+                        placeholder = { Text("0") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        suffix = { Text("€/an") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { addingNew = false; newName = ""; newEmoji = "\uD83C\uDFC3"; newPriceText = "" },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Annuler") }
+                        Button(
+                            onClick = {
+                                if (newName.isNotBlank()) {
+                                    viewModel.addActivity(ActivityDefinition(newName.trim(), newEmoji.trim().ifEmpty { "\uD83C\uDFC3" }, newPriceText.toDoubleOrNull() ?: 0.0))
+                                    addingNew = false; newName = ""; newEmoji = "\uD83C\uDFC3"; newPriceText = ""
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Ajouter") }
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = { addingNew = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Ajouter une activité")
+                    }
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -1153,12 +1245,49 @@ fun SettingsTab(viewModel: GymViewModel) {
                 Text("PÉRIODE DE SUIVI", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedButton(onClick = { showStartDatePicker = true }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small) {
-                    Text("Date de début: " + (startDate?.format(dateFormatter) ?: "--"))
+                    Icon(Icons.Filled.DateRange, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Début : " + (startDate?.format(dateFormatter)?.replaceFirstChar { it.uppercase() } ?: "--"))
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-                Text("Date de fin: " + (endDate?.format(dateFormatter) ?: "--"), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Durée: 365 jours (automatique)", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primary)
+                if (!autoEnd365) {
+                    OutlinedButton(onClick = { showEndDatePicker = true }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small) {
+                        Icon(Icons.Filled.DateRange, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Fin : " + (endDate?.format(dateFormatter)?.replaceFirstChar { it.uppercase() } ?: "--"))
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                } else {
+                    Text(
+                        "Fin : " + (endDate?.format(dateFormatter)?.replaceFirstChar { it.uppercase() } ?: "--"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.small)
+                        .clickable {
+                            autoEnd365 = !autoEnd365
+                            if (autoEnd365 && startDate != null) viewModel.updateStartDateWithAutoEnd(startDate!!)
+                        }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("365 jours automatiques", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Switch(
+                        checked = autoEnd365,
+                        onCheckedChange = {
+                            autoEnd365 = it
+                            if (it && startDate != null) viewModel.updateStartDateWithAutoEnd(startDate!!)
+                        }
+                    )
+                }
             }
         }
         
@@ -1171,11 +1300,12 @@ fun SettingsTab(viewModel: GymViewModel) {
                 Text("COMMENT ÇA MARCHE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "1. Configure tes activités et leurs prix annuels\n" +
-                    "2. Définis ta date de début (fin = +365 jours)\n" +
-                    "3. Pointe tes activités dans 'Suivi' ou 'Calendrier'\n" +
-                    "4. Les activités à 0€ sont gratuites\n" +
-                    "5. Le coût par séance est calculé par activité et globalement",
+                    "1. Ajoute tes activités sportives et leurs coûts annuels dans Activités\n" +
+                    "2. Définis ta période de suivi (début + fin, ou 365 jours auto)\n" +
+                    "3. Dans Suivi, pointe tes activités du jour et consulte stats + coût\n" +
+                    "4. Dans Calendrier, accesse n'importe quel jour pour pointer une séance passée ou future, ou juste écrire une note\n" +
+                    "5. Dans Profil, suis ta progression de niveau (Niveau 7 → 1) et ton coût par séance\n" +
+                    "6. Les activités à 0 € sont gratuites et n'affectent pas le coût moyen",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1214,9 +1344,9 @@ fun SettingsTab(viewModel: GymViewModel) {
                                 exportImportContext.contentResolver.openOutputStream(it)?.use { stream ->
                                     stream.write(json.toByteArray())
                                 }
-                                Toast.makeText(exportImportContext, "✅ Export réussi !", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(exportImportContext, "Export réussi", Toast.LENGTH_SHORT).show()
                             } catch (e: Exception) {
-                                Toast.makeText(exportImportContext, "❌ Erreur: ${e.message}", Toast.LENGTH_LONG).show()
+                                Toast.makeText(exportImportContext, "Erreur: ${e.message}", Toast.LENGTH_LONG).show()
                             }
                         }
                     }
@@ -1254,7 +1384,7 @@ fun SettingsTab(viewModel: GymViewModel) {
                 if (showImportDialog) {
                     AlertDialog(
                         onDismissRequest = { showImportDialog = false; pendingImportJson = null },
-                        title = { Text("⚠️ Importer des données", fontWeight = FontWeight.Bold) },
+                        title = { Text("Importer des données", fontWeight = FontWeight.Bold) },
                         text = {
                             Text("Cette action va remplacer toutes tes données actuelles (séances et configuration) par celles du fichier.\n\nCette action est irréversible.")
                         },
@@ -1264,9 +1394,9 @@ fun SettingsTab(viewModel: GymViewModel) {
                                     pendingImportJson?.let { json ->
                                         try {
                                             viewModel.importDataFromJson(json)
-                                            Toast.makeText(exportImportContext, "✅ Import réussi !", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(exportImportContext, "Import réussi", Toast.LENGTH_SHORT).show()
                                         } catch (e: Exception) {
-                                            Toast.makeText(exportImportContext, "❌ Fichier invalide: ${e.message}", Toast.LENGTH_LONG).show()
+                                            Toast.makeText(exportImportContext, "Fichier invalide: ${e.message}", Toast.LENGTH_LONG).show()
                                         }
                                     }
                                     showImportDialog = false
@@ -1325,9 +1455,9 @@ fun SettingsTab(viewModel: GymViewModel) {
     if (showResetDialog) {
         AlertDialog(
             onDismissRequest = { showResetDialog = false },
-            title = { Text("⚠️ Confirmation", fontWeight = FontWeight.Bold, color = Color(0xFFDC2626)) },
+            title = { Text("Confirmation", fontWeight = FontWeight.Bold, color = Color(0xFFDC2626)) },
             text = {
-                Text("Es-vous sûr de vouloir tout supprimer ?\n\nCette action est irréversible et vous allez perdre :\n• Toutes vos séances enregistrées\n• Votre historique complet\n• Votre progression de tier\n• Tous vos prix d'abonnements", style = MaterialTheme.typography.bodyMedium)
+                Text("Supprimer toutes les données ?\n\nCette action est irréversible : séances, historique, progression et configuration seront perdus.", style = MaterialTheme.typography.bodyMedium)
             },
             confirmButton = {
                 Button(
@@ -1353,75 +1483,61 @@ fun SettingsTab(viewModel: GymViewModel) {
                         modifier = Modifier.size(80.dp).clip(RoundedCornerShape(16.dp))
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Muscunombre", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = Color(0xFF2E7D32))
+                    Text("Muscunombre", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = MaterialTheme.colorScheme.primary)
                 }
             },
             text = {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("Version 1.0.0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Version 4.0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     
                     HorizontalDivider()
                     
-                    Text("🎯 Track tes séances de sport et optimise ton budget fitness !", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+                    Text("Suivi de séances et calcul du coût par séance.", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
                     
                     HorizontalDivider()
                     
-                    Text("👨‍💻 Réalisé avec ❤️ par", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Jade Senterre", fontWeight = FontWeight.Medium)
-                        Text(
-                            "senterrejade@gmail.com", 
-                            style = MaterialTheme.typography.bodySmall, 
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.clickable {
-                                val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                    data = Uri.parse("mailto:senterrejade@gmail.com")
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Développeurs", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Jade Senterre", fontWeight = FontWeight.Medium)
+                            Text(
+                                "senterrejade@gmail.com",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.clickable {
+                                    context.startActivity(Intent(Intent.ACTION_SENDTO).apply { data = Uri.parse("mailto:senterrejade@gmail.com") })
                                 }
-                                context.startActivity(intent)
-                            }
-                        )
-                    }
-                    
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Alexandre Kim", fontWeight = FontWeight.Medium)
-                        Text(
-                            "kim.alxn@gmail.com", 
-                            style = MaterialTheme.typography.bodySmall, 
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.clickable {
-                                val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                    data = Uri.parse("mailto:kim.alxn@gmail.com")
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Alexandre Kim", fontWeight = FontWeight.Medium)
+                            Text(
+                                "kim.alxn@gmail.com",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.clickable {
+                                    context.startActivity(Intent(Intent.ACTION_SENDTO).apply { data = Uri.parse("mailto:kim.alxn@gmail.com") })
                                 }
-                                context.startActivity(intent)
-                            }
-                        )
+                            )
+                        }
                     }
                     
                     HorizontalDivider()
                     
-                    Text("🔗 Code source", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Text(
-                        "github.com/kimalxn/muscunombre", 
-                        style = MaterialTheme.typography.bodySmall, 
+                        "github.com/kimalxn/muscunombre",
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.clickable {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/kimalxn/muscunombre"))
-                            context.startActivity(intent)
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/kimalxn/muscunombre")))
                         }
                     )
                     
-                    HorizontalDivider()
-                    
-                    Text("🛠️ Technologies", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Text("Kotlin • Jetpack Compose • Room • Material 3", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Made in Paris 🇫🇷 • 2026", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Kotlin · Jetpack Compose · Room · Material 3", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
             confirmButton = {
@@ -1433,16 +1549,19 @@ fun SettingsTab(viewModel: GymViewModel) {
     if (showStartDatePicker) {
         DatePickerDialog(
             currentDate = startDate ?: LocalDate.now(),
-            onDateSelected = { viewModel.updateStartDateWithAutoEnd(it); showStartDatePicker = false },
+            onDateSelected = {
+                if (autoEnd365) viewModel.updateStartDateWithAutoEnd(it) else viewModel.updateStartDateOnly(it)
+                showStartDatePicker = false
+            },
             onDismiss = { showStartDatePicker = false }
         )
     }
-    
-    if (showAddActivityDialog) {
-        EditActivityDialog(
-            activityDef = null,
-            onSave = { viewModel.addActivity(it); showAddActivityDialog = false },
-            onDismiss = { showAddActivityDialog = false }
+
+    if (showEndDatePicker) {
+        DatePickerDialog(
+            currentDate = endDate ?: (startDate?.plusDays(365) ?: LocalDate.now()),
+            onDateSelected = { viewModel.updateEndDate(it); showEndDatePicker = false },
+            onDismiss = { showEndDatePicker = false }
         )
     }
     
@@ -1468,7 +1587,7 @@ fun EditActivityDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isNew) "➕ Nouvelle activité" else "✏️ Modifier l'activité", fontWeight = FontWeight.Bold) },
+        title = { Text(if (isNew) "Nouvelle activité" else "Modifier l'activité", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(

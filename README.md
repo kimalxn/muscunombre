@@ -1,99 +1,93 @@
-# Muscunombre 🐀💪
+# Muscunombre
 
-Application Android pour tracker tes séances de sport et optimiser ton budget fitness.
-
----
-
-## 📱 Télécharger l'application (SUPER SIMPLE !)
-
-### ➡️ [Clique ici pour télécharger l'APK](https://github.com/kimalxn/muscunombre/releases/latest/download/muscunombre.apk)
-
-Ou va dans l'onglet **[Releases](https://github.com/kimalxn/muscunombre/releases)** et télécharge le fichier `muscunombre.apk`.
+Application Android de suivi de séances de sport et de calcul du coût par séance.
 
 ---
 
-## 📲 Comment installer sur ton téléphone Android
+## Télécharger
 
-### Étape 1 : Télécharge l'APK
-- Sur ton téléphone, clique sur le lien ci-dessus
-- Ou transfère le fichier depuis ton ordinateur (email, Drive, câble USB...)
+[Dernière version (APK)](https://github.com/kimalxn/muscunombre/releases/latest/download/muscunombre.apk)\
+Ou depuis l'onglet **[Releases](https://github.com/kimalxn/muscunombre/releases)**.
 
-### Étape 2 : Autorise l'installation
-1. Quand tu ouvres le fichier, Android te demande d'autoriser l'installation
-2. Clique sur **"Paramètres"** puis active **"Autoriser depuis cette source"**
-3. Reviens en arrière et clique **"Installer"**
+### Installation sur Android
 
-### Étape 3 : C'est prêt ! 🎉
-L'application "Muscunombre" apparaît sur ton écran d'accueil.
+1. Télécharger le fichier APK sur le téléphone
+2. Ouvrir le fichier — Android demandera d'autoriser l'installation depuis cette source
+3. Autoriser, puis installer
 
 ---
 
-## 🎮 Fonctionnalités
+## Fonctionnalités
 
-- **Suivi** : Pointe tes activités quotidiennes, vois le coût par séance
-- **Calendrier** : Visualise toutes tes séances du mois
-- **Profil** : Suis ta progression et tes tiers de gamification
-- **Réglages** : Configure tes activités, prix, exporte/importe tes données
+### Suivi
+- Pointer les activités du jour par pression, ou désélectionner avec un second appui
+- Bouton "Valider" pour confirmer les changements
+- Coût par séance global et par activité
+- Niveau actuel et progression vers le niveau suivant
+- Résumé de la période en bas de page
 
-### Activités personnalisables
-L'app vient avec 6 activités par défaut (Dynamo, Circuit Training, Cardio Boxing, Workout, Running, Autres) mais tu peux **ajouter, modifier et supprimer** tes propres activités avec un tag, un nom et un prix annuel.
+### Calendrier
+- Vue mensuelle, navigation par swipe ou boutons fléchés
+- Jours avec séance : fond bleu ; séances en prévision : fond bleu pâle ; jours avec note seule : fond grisé
+- Cliquer sur n'importe quel jour (passé, présent, futur) ouvre un dialogue pour enregistrer des activités et une note
+- Les notes peuvent être enregistrées sans sélectionner d'activité
 
-### 💰 Calcul du coût par séance
-L'app calcule automatiquement combien te coûte chaque séance — globalement et par activité — en fonction de tes prix d'abonnement.
+### Profil
+- Niveau actuel parmi 7 (Niveau 1 = 251+ séances, Niveau 7 = 0–10)
+- Barre de progression, séances restantes avant le niveau suivant, jours restants avant la fin de période
+- Liste complète des niveaux
 
-### 📦 Export / Import
-Sauvegarde et restaure toutes tes données (séances + config) en JSON. Format v2 avec timelog.
-
----
-
-## 🏆 Système de Tiers
-
-| Tier | Nom | Emoji | Séances |
-|------|-----|-------|---------|
-| 1 | Vieux Rongeur | 🐀💤 | 0-10 |
-| 2 | Mini Mouse | 🐭🍼 | 11-25 |
-| 3 | Knight Mouse | 🐭⚔️ | 26-50 |
-| 4 | King Rat | 🐀👑 | 51-100 |
-| 5 | Oonga Bouna | 🦍🔥 | 101-175 |
-| 6 | Meep Meep | 🏃💨 | 176-250 |
-| 7 | Légende | ⭐ | 251+ |
+### Réglages
+- Activités : ajout inline, modification du tag / nom / prix annuel, suppression avec double confirmation
+- Période de suivi : dates de début et de fin libres, ou 365 jours automatiques depuis le début
+- Export / Import des données en JSON
 
 ---
 
-## 👨‍💻 Développeurs
+## Niveaux
 
-Réalisé avec ❤️ par :
-- **Jade Senterre** - senterrejade@gmail.com
-- **Alexandre Kim** - kim.alxn@gmail.com
+| Niveau | Séances |
+|--------|---------|
+| 1 | 251+ |
+| 2 | 176–250 |
+| 3 | 101–175 |
+| 4 | 51–100 |
+| 5 | 26–50 |
+| 6 | 11–25 |
+| 7 | 0–10 |
 
 ---
 
-## 🛠️ Pour les développeurs
+## Calcul du coût
 
-### Compiler l'APK
+- **Coût par séance d'une activité** = prix annuel de l'activité / nombre de séances de cette activité sur la période
+- **Coût global** = total des prix annuels / nombre total de séances payantes sur la période
+
+Les activités sans prix (0 €) ne sont pas prises en compte dans le calcul.
+
+---
+
+## Développeurs
+
+- Jade Senterre — senterrejade@gmail.com
+- Alexandre Kim — kim.alxn@gmail.com
+
+---
+
+## Compiler depuis les sources
 
 ```bash
-# Cloner le projet
 git clone https://github.com/kimalxn/muscunombre.git
 cd muscunombre
-
-# Compiler (nécessite Java 17)
 export JAVA_HOME=/opt/homebrew/opt/openjdk@17
 ./gradlew assembleDebug
-
-# L'APK se trouve dans :
-# app/build/outputs/apk/debug/app-debug.apk
+# APK : app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### Technologies utilisées
-- Kotlin
-- Jetpack Compose
-- Room Database
-- Material Design 3
-- DataStore
+Stack : Kotlin · Jetpack Compose · Room · Material 3 · DataStore
 
 ---
 
-## 📄 Licence
+## Licence
 
-MIT License - Utilise, modifie et partage librement !
+MIT

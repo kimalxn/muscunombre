@@ -19,25 +19,27 @@ import java.time.LocalDate
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "gym_tracker_prefs")
 
-// Tiers de gamification avec couleurs
+// Niveaux de gamification
 data class GamificationTier(
     val tier: Int,
     val name: String,
-    val emoji: String,
     val minSessions: Int,
     val maxSessions: Int,
     val description: String,
-    val colorHex: Long // Couleur du banner
+    val colorHex: Long
 )
 
+val GamificationTier.displayLevel: Int get() = 8 - tier
+val GamificationTier.displayName: String get() = "Niveau $displayLevel"
+
 val TIERS = listOf(
-    GamificationTier(1, "Vieux Rongeur", "🐀💤", 0, 10, "Tu débutes... continue !", 0xFF6B7280), // Gris
-    GamificationTier(2, "Mini Mouse", "🐭🍼", 11, 25, "Tu prends le rythme !", 0xFF60A5FA), // Bleu clair
-    GamificationTier(3, "Knight Mouse", "🐭⚔️", 26, 50, "Un vrai guerrier !", 0xFFC0C0C0), // Argent
-    GamificationTier(4, "King Rat", "🐀👑", 51, 100, "Respect, ta majesté !", 0xFF8B5CF6), // Violet
-    GamificationTier(5, "Oonga Bouna", "🦍🔥", 101, 175, "MODE BÊTE ACTIVÉ !", 0xFFF97316), // Orange
-    GamificationTier(6, "Meep Meep", "🏃💨", 176, 250, "BIP BIP ! Impossible à rattraper !", 0xFF06B6D4), // Cyan
-    GamificationTier(7, "Légende", "⭐", 251, Int.MAX_VALUE, "Tu es une LÉGENDE !", 0xFFFFD700) // Doré
+    GamificationTier(1, "Niveau 7", 0, 10, "0–10 séances", 0xFF9CA3AF),
+    GamificationTier(2, "Niveau 6", 11, 25, "11–25 séances", 0xFF60A5FA),
+    GamificationTier(3, "Niveau 5", 26, 50, "26–50 séances", 0xFF34D399),
+    GamificationTier(4, "Niveau 4", 51, 100, "51–100 séances", 0xFF818CF8),
+    GamificationTier(5, "Niveau 3", 101, 175, "101–175 séances", 0xFFF59E0B),
+    GamificationTier(6, "Niveau 2", 176, 250, "176–250 séances", 0xFFEF4444),
+    GamificationTier(7, "Niveau 1", 251, Int.MAX_VALUE, "251+ séances", 0xFF2563EB)
 )
 
 fun getTierForSessions(count: Int): GamificationTier {
@@ -45,7 +47,7 @@ fun getTierForSessions(count: Int): GamificationTier {
 }
 
 fun getProgressInTier(count: Int, tier: GamificationTier): Float {
-    if (tier.tier == 7) return 1f // Légende = 100%
+    if (tier.tier == 7) return 1f // Niveau max = 100%
     val range = tier.maxSessions - tier.minSessions + 1
     val progress = count - tier.minSessions + 1
     return (progress.toFloat() / range).coerceIn(0f, 1f)
@@ -63,6 +65,7 @@ class GymViewModel(private val context: Context) : ViewModel() {
         private val START_DATE_KEY = stringPreferencesKey("start_date")
         private val END_DATE_KEY = stringPreferencesKey("end_date")
         private val ONBOARDING_COMPLETED_KEY = booleanPreferencesKey("onboarding_completed")
+        private val STANDALONE_NOTES_KEY = stringPreferencesKey("standalone_notes_json")
     }
     
     private val database = GymDatabase.getDatabase(context)
@@ -108,7 +111,21 @@ class GymViewModel(private val context: Context) : ViewModel() {
     val sessionCount: StateFlow<Int> = allSessions
         .map { it.size }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
-    
+
+    // Dates ayant une note indépendante (sans séance)
+    val datesWithStandaloneNotes: StateFlow<Set<LocalDate>> = context.dataStore.data
+        .map { prefs ->
+            val json = prefs[STANDALONE_NOTES_KEY] ?: return@map emptySet()
+            try {
+                val obj = org.json.JSONObject(json)
+                obj.keys().asSequence()
+                    .filter { obj.getString(it).isNotEmpty() }
+                    .mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }
+                    .toSet()
+            } catch (e: Exception) { emptySet() }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
     init {
         loadPreferences()
     }
@@ -201,79 +218,40 @@ class GymViewModel(private val context: Context) : ViewModel() {
             }
         }
     }
-    
-    // Ajouter une activité pour aujourd'hui
-    fun addTodaySession(activity: String) {
+
+    // Notes indépendantes (sans session associée) — stockées en DataStore
+    fun saveStandaloneNote(date: LocalDate, note: String) {
         viewModelScope.launch {
-            val today = LocalDate.now()
-            val existing = sessionDao.getSessionByDateAndActivity(today, activity)
-            if (existing == null) {
-                sessionDao.insertSession(GymSession(date = today, activity = activity))
+            context.dataStore.edit { prefs ->
+                val existing = try { JSONObject(prefs[STANDALONE_NOTES_KEY] ?: "{}") } catch (e: Exception) { JSONObject() }
+                if (note.isEmpty()) existing.remove(date.toString()) else existing.put(date.toString(), note)
+                prefs[STANDALONE_NOTES_KEY] = existing.toString()
             }
         }
     }
+
+    suspend fun getStandaloneNoteForDate(date: LocalDate): String {
+        val json = context.dataStore.data.first()[STANDALONE_NOTES_KEY] ?: return ""
+        return try { JSONObject(json).optString(date.toString(), "") } catch (e: Exception) { "" }
+    }
     
-    // Ajouter une activité à une date spécifique
-    fun addSessionOnDate(date: LocalDate, activity: String) {
-        viewModelScope.launch {
-            val existing = sessionDao.getSessionByDateAndActivity(date, activity)
-            if (existing == null) {
-                sessionDao.insertSession(GymSession(date = date, activity = activity))
-            }
+
+    // Versions suspend pour usage ordonné dans les coroutines UI
+    suspend fun addSessionSuspend(date: LocalDate, activity: String) {
+        val existing = sessionDao.getSessionByDateAndActivity(date, activity)
+        if (existing == null) {
+            sessionDao.insertSession(GymSession(date = date, activity = activity))
         }
     }
-    
-    // Supprimer une activité pour aujourd'hui
-    fun removeTodaySession(activity: String) {
-        viewModelScope.launch {
-            val today = LocalDate.now()
-            sessionDao.deleteSessionByDateAndActivity(today, activity)
-        }
+
+    suspend fun removeActivitySuspend(date: LocalDate, activity: String) {
+        sessionDao.deleteSessionByDateAndActivity(date, activity)
     }
-    
-    // Supprimer une activité spécifique d'une date
-    fun removeActivityOnDate(date: LocalDate, activity: String) {
-        viewModelScope.launch {
-            sessionDao.deleteSessionByDateAndActivity(date, activity)
-        }
+
+    suspend fun updateNoteSuspend(date: LocalDate, note: String) {
+        sessionDao.updateNoteForDate(date, note)
     }
-    
-    // Supprimer toutes les séances d'une date
-    fun removeSessionOnDate(date: LocalDate) {
-        viewModelScope.launch {
-            sessionDao.deleteSessionByDate(date)
-        }
-    }
-    
-    // Toggle une activité pour une date
-    fun toggleActivityOnDate(date: LocalDate, activity: String) {
-        viewModelScope.launch {
-            val existing = sessionDao.getSessionByDateAndActivity(date, activity)
-            if (existing != null) {
-                sessionDao.deleteSession(existing)
-            } else {
-                sessionDao.insertSession(GymSession(date = date, activity = activity))
-            }
-        }
-    }
-    
-    // Vérifier si une activité est déjà pointée pour une date
-    suspend fun isActivityLoggedForDate(date: LocalDate, activity: String): Boolean {
-        return sessionDao.getSessionByDateAndActivity(date, activity) != null
-    }
-    
-    // Obtenir les activités d'une date
-    suspend fun getActivitiesForDate(date: LocalDate): List<String> {
-        return sessionDao.getSessionsByDateSync(date).map { it.activity }
-    }
-    
-    // Mettre à jour la note pour une date (note par jour)
-    fun updateNoteForDate(date: LocalDate, note: String) {
-        viewModelScope.launch {
-            sessionDao.updateNoteForDate(date, note)
-        }
-    }
-    
+
     // Obtenir la note pour une date
     suspend fun getNoteForDate(date: LocalDate): String {
         return sessionDao.getNoteForDate(date) ?: ""
@@ -409,14 +387,7 @@ class GymViewModel(private val context: Context) : ViewModel() {
         }
     }
     
-    // RESET COMPLET : vide la base de données
-    fun resetSessions() {
-        viewModelScope.launch {
-            sessionDao.deleteAllSessions()
-        }
-    }
-    
-    // RESET COMPLET avec activités
+    // RESET COMPLET : sessions + activités
     fun resetAllData() {
         viewModelScope.launch {
             sessionDao.deleteAllSessions()
@@ -426,7 +397,7 @@ class GymViewModel(private val context: Context) : ViewModel() {
         }
     }
     
-    fun updateStartDate(date: LocalDate) {
+    fun updateStartDateOnly(date: LocalDate) {
         viewModelScope.launch {
             context.dataStore.edit { preferences ->
                 preferences[START_DATE_KEY] = date.toString()
