@@ -35,12 +35,11 @@ Application Android de suivi sportif. Kotlin + Jetpack Compose + Material 3. Sin
 - **Export/Import** : JSON v2 avec activities, config, sessions
 
 ### MainActivity.kt — 4 onglets (HorizontalPager)
-1. **Suivi** (`SessionTrackingTab`) : Pointer les activités du jour. Stats en haut (séances dans la période, coût/séance, % écoulé). Cards : AUJOURD'HUI, PÉRIODE, COÛT PAR SÉANCE, NIVEAU (tier all-time), ACTIVITÉS (comptées sur la période), COMPTE RENDU.
-   - `sessionsInPeriod` utilisé pour les stats, coûts, activités, compte rendu
-   - `sessionCount` (all-time) utilisé uniquement pour le tier/niveau
+1. **Suivi** (`SessionTrackingTab`) : Pointer les activités du jour. Stats en haut (séances dans la période, coût/séance, % écoulé). Cards : AUJOURD'HUI, PÉRIODE, COÛT PAR SÉANCE, NIVEAU (dans la période), ACTIVITÉS (comptées sur la période), COMPTE RENDU.
+   - `sessionsInPeriod` utilisé pour les stats, coûts, activités, compte rendu, et le niveau/tier
    - `allSessions` utilisé uniquement pour les activités du jour (todayActivities)
 2. **Calendrier** (`CalendarTab`) : Grille Column+Row (pas LazyVerticalGrid). Swipe horizontal entre mois. Click sur un jour → dialog pour pointer des séances ou écrire une note. Jours avec note standalone ont un fond pâle.
-3. **Profil** (`UserTab`) : Tier actuel avec nom + description + nombre de séances total. Progression vers le tier suivant avec barre + jours restants. Liste de tous les niveaux (badge "toi" sur le niveau actuel).
+3. **Profil** (`UserTab`) : Tier actuel (basé sur la période) avec nom + description + nombre de séances. Progression vers le tier suivant avec barre + jours restants. Liste de tous les niveaux (badge "toi" sur le niveau actuel).
 4. **Réglages** (`SettingsTab`) : Gestion inline des activités (ajout/suppression double-clic). Période (dates début/fin, toggle 365j auto). "Comment ça marche" (3 points). Export/Import JSON. À Propos (v4.0).
 
 ### UI / Design

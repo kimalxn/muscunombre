@@ -307,7 +307,6 @@ fun AppNavBar(currentPage: Int, onPageSelected: (Int) -> Unit) {
 
 @Composable
 fun SessionTrackingTab(viewModel: GymViewModel) {
-    val sessionCount by viewModel.sessionCount.collectAsState()
     val activitiesDefs by viewModel.activities.collectAsState()
     val subscriptionPrice by viewModel.subscriptionPrice.collectAsState()
     val startDate by viewModel.startDate.collectAsState()
@@ -335,9 +334,9 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
     val periodSessionCount = sessionsInPeriod.size
     val paidSessionCount = activitiesDefs.filter { it.price > 0 }.sumOf { activityCounts[it.name] ?: 0 }
     val globalPricePerSession = if (paidSessionCount > 0 && subscriptionPrice > 0) subscriptionPrice / paidSessionCount else 0.0
-    // Tier uses all-time session count
-    val currentTier = getTierForSessions(sessionCount)
-    val progress = getProgressInTier(sessionCount, currentTier)
+    // Tier scoped to the active period
+    val currentTier = getTierForSessions(periodSessionCount)
+    val progress = getProgressInTier(periodSessionCount, currentTier)
 
     Column(
         modifier = Modifier
@@ -549,7 +548,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                 if (currentTier.tier < 7) {
                     val nextTier = TIERS[currentTier.tier]
                     Text(
-                        "${currentTier.maxSessions - sessionCount + 1} séances avant ${nextTier.displayName}",
+                        "${currentTier.maxSessions - periodSessionCount + 1} séances avant ${nextTier.displayName}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -622,10 +621,11 @@ private fun StatCell(value: String, label: String) {
 
 @Composable
 fun UserTab(viewModel: GymViewModel) {
-    val sessionCount by viewModel.sessionCount.collectAsState()
+    val sessionsInPeriod by viewModel.sessionsInPeriod.collectAsState()
+    val periodSessionCount = sessionsInPeriod.size
     val endDate by viewModel.endDate.collectAsState()
-    val currentTier = getTierForSessions(sessionCount)
-    val progress = getProgressInTier(sessionCount, currentTier)
+    val currentTier = getTierForSessions(periodSessionCount)
+    val progress = getProgressInTier(periodSessionCount, currentTier)
     val tierColor = Color(currentTier.colorHex)
     val today = LocalDate.now()
     val daysRemaining = endDate?.let { java.time.temporal.ChronoUnit.DAYS.between(today, it).toInt().coerceAtLeast(0) } ?: 0
@@ -662,7 +662,7 @@ fun UserTab(viewModel: GymViewModel) {
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    "$sessionCount",
+                    "$periodSessionCount",
                     style = MaterialTheme.typography.displayMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -692,9 +692,9 @@ fun UserTab(viewModel: GymViewModel) {
                         trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    val currentProgress = sessionCount - currentTier.minSessions + 1
+                    val currentProgress = periodSessionCount - currentTier.minSessions + 1
                     val tierRange = currentTier.maxSessions - currentTier.minSessions + 1
-                    val remaining = currentTier.maxSessions - sessionCount + 1
+                    val remaining = currentTier.maxSessions - periodSessionCount + 1
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("$currentProgress / $tierRange", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("$remaining restantes", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = tierColor)
@@ -722,7 +722,7 @@ fun UserTab(viewModel: GymViewModel) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 TIERS.forEachIndexed { index, tier ->
                     val isCurrentTier = tier.tier == currentTier.tier
-                    val isUnlocked = sessionCount >= tier.minSessions
+                    val isUnlocked = periodSessionCount >= tier.minSessions
                     val tc = Color(tier.colorHex)
 
                     if (index > 0) HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
