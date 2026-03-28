@@ -661,8 +661,8 @@ private fun PriceChangeOverlay(delta: Double, triggerKey: Int) {
         alpha.snapTo(1f)
         offsetY.snapTo(0f)
         kotlinx.coroutines.coroutineScope {
-            launch { alpha.animateTo(0f, tween(1000, easing = LinearOutSlowInEasing)) }
-            launch { offsetY.animateTo(-24f, tween(1000, easing = LinearOutSlowInEasing)) }
+            launch { alpha.animateTo(0f, tween(3000, easing = LinearOutSlowInEasing)) }
+            launch { offsetY.animateTo(-28f, tween(3000, easing = LinearOutSlowInEasing)) }
         }
     }
     val color = if (delta < 0) Color(0xFF22C55E) else Color(0xFFEF4444)
@@ -671,7 +671,7 @@ private fun PriceChangeOverlay(delta: Double, triggerKey: Int) {
         "${sign}%.2f€".format(delta),
         color = color,
         fontWeight = FontWeight.Bold,
-        fontSize = 13.sp,
+        fontSize = 18.sp,
         modifier = Modifier
             .offset(y = offsetY.value.dp)
             .graphicsLayer { this.alpha = alpha.value }
