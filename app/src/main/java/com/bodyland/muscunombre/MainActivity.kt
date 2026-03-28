@@ -9,6 +9,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -38,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -46,6 +49,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bodyland.muscunombre.data.ActivityDefinition
 import com.bodyland.muscunombre.data.GymSession
@@ -326,6 +330,11 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
     val todayActivities = allSessions.filter { it.date == today }.map { it.activity }.toSet()
     LaunchedEffect(todayActivities) { selectedActivities = todayActivities }
 
+    // Price change animation state
+    var prevGlobalPrice by remember { mutableStateOf<Double?>(null) }
+    var prevActivityPrices by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
+    var animationKey by remember { mutableIntStateOf(0) }
+
     val daysRemaining = endDate?.let { java.time.temporal.ChronoUnit.DAYS.between(today, it).toInt().coerceAtLeast(0) } ?: 0
     val totalDays = if (startDate != null && endDate != null) java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate).toInt() else 0
     val daysPassed = startDate?.let { java.time.temporal.ChronoUnit.DAYS.between(it, today).toInt().coerceAtLeast(0) } ?: 0
@@ -334,6 +343,16 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
     val periodSessionCount = sessionsInPeriod.size
     val paidSessionCount = activitiesDefs.filter { it.price > 0 }.sumOf { activityCounts[it.name] ?: 0 }
     val globalPricePerSession = if (paidSessionCount > 0 && subscriptionPrice > 0) subscriptionPrice / paidSessionCount else 0.0
+    // Delta computation for price change animation
+    val globalDelta = if (prevGlobalPrice != null && animationKey > 0) globalPricePerSession - prevGlobalPrice!! else 0.0
+    val activityDeltas = if (animationKey > 0) {
+        activitiesDefs.filter { it.price > 0 }.associate { actDef ->
+            val count = activityCounts[actDef.name] ?: 0
+            val newPrice = if (count > 0) actDef.price / count else 0.0
+            val oldPrice = prevActivityPrices[actDef.name] ?: 0.0
+            actDef.name to (newPrice - oldPrice)
+        }
+    } else emptyMap()
     // Tier scoped to the active period
     val currentTier = getTierForSessions(periodSessionCount)
     val progress = getProgressInTier(periodSessionCount, currentTier)
@@ -374,10 +393,13 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
             ) {
                 StatCell(value = "$periodSessionCount", label = "séances")
                 VerticalDivider(modifier = Modifier.height(36.dp))
-                StatCell(
-                    value = if (globalPricePerSession > 0) "%.2f€".format(globalPricePerSession) else "--",
-                    label = "/ séance"
-                )
+                Box(contentAlignment = Alignment.TopCenter) {
+                    StatCell(
+                        value = if (globalPricePerSession > 0) "%.2f€".format(globalPricePerSession) else "--",
+                        label = "/ séance"
+                    )
+                    PriceChangeOverlay(delta = globalDelta, triggerKey = animationKey)
+                }
                 VerticalDivider(modifier = Modifier.height(36.dp))
                 StatCell(
                     value = if (totalDays > 0) "${((daysPassed.toFloat() / totalDays) * 100).toInt()}%" else "--",
@@ -458,10 +480,17 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                 val hasChanges = selectedActivities != todayActivities
                 Button(
                     onClick = {
+                        // Capture current prices before DB update
+                        prevGlobalPrice = globalPricePerSession
+                        prevActivityPrices = activitiesDefs.filter { it.price > 0 }.associate { actDef ->
+                            val count = activityCounts[actDef.name] ?: 0
+                            actDef.name to (if (count > 0) actDef.price / count else 0.0)
+                        }
                         scope.launch {
                             val today = LocalDate.now()
                             selectedActivities.forEach { if (!todayActivities.contains(it)) viewModel.addSessionSuspend(today, it) }
                             todayActivities.forEach { if (!selectedActivities.contains(it)) viewModel.removeActivitySuspend(today, it) }
+                            animationKey++
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -515,11 +544,15 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                                 Text(actDef.emoji + "  " + actDef.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                                 Text("$count séances · ${actDef.price.toInt()}€/an", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Text(
-                                if (count > 0) "%.2f €".format(pricePerSession) else "-- €",
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (count > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Box(contentAlignment = Alignment.TopEnd) {
+                                Text(
+                                    if (count > 0) "%.2f €".format(pricePerSession) else "-- €",
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (count > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                val actDelta = activityDeltas[actDef.name] ?: 0.0
+                                PriceChangeOverlay(delta = actDelta, triggerKey = animationKey)
+                            }
                         }
                     }
                 }
@@ -617,6 +650,32 @@ private fun StatCell(value: String, label: String) {
         Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+}
+
+@Composable
+private fun PriceChangeOverlay(delta: Double, triggerKey: Int) {
+    if (triggerKey == 0 || delta == 0.0) return
+    val alpha = remember { Animatable(1f) }
+    val offsetY = remember { Animatable(0f) }
+    LaunchedEffect(triggerKey) {
+        alpha.snapTo(1f)
+        offsetY.snapTo(0f)
+        kotlinx.coroutines.coroutineScope {
+            launch { alpha.animateTo(0f, tween(1000, easing = LinearOutSlowInEasing)) }
+            launch { offsetY.animateTo(-24f, tween(1000, easing = LinearOutSlowInEasing)) }
+        }
+    }
+    val color = if (delta < 0) Color(0xFF22C55E) else Color(0xFFEF4444)
+    val sign = if (delta < 0) "" else "+"
+    Text(
+        "${sign}%.2f€".format(delta),
+        color = color,
+        fontWeight = FontWeight.Bold,
+        fontSize = 13.sp,
+        modifier = Modifier
+            .offset(y = offsetY.value.dp)
+            .graphicsLayer { this.alpha = alpha.value }
+    )
 }
 
 @Composable
