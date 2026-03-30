@@ -661,8 +661,8 @@ private fun PriceChangeOverlay(delta: Double, triggerKey: Int) {
         alpha.snapTo(1f)
         offsetY.snapTo(0f)
         kotlinx.coroutines.coroutineScope {
-            launch { alpha.animateTo(0f, tween(3000, easing = LinearOutSlowInEasing)) }
-            launch { offsetY.animateTo(-28f, tween(3000, easing = LinearOutSlowInEasing)) }
+            launch { alpha.animateTo(0f, tween(5000, easing = LinearOutSlowInEasing)) }
+            launch { offsetY.animateTo(-32f, tween(5000, easing = LinearOutSlowInEasing)) }
         }
     }
     val color = if (delta < 0) Color(0xFF22C55E) else Color(0xFFEF4444)
@@ -671,7 +671,7 @@ private fun PriceChangeOverlay(delta: Double, triggerKey: Int) {
         "${sign}%.2f€".format(delta),
         color = color,
         fontWeight = FontWeight.Bold,
-        fontSize = 18.sp,
+        fontSize = 21.sp,
         modifier = Modifier
             .offset(y = offsetY.value.dp)
             .graphicsLayer { this.alpha = alpha.value }
@@ -828,19 +828,27 @@ fun UserTab(viewModel: GymViewModel) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun CalendarTab(viewModel: GymViewModel) {
     val sessionCount by viewModel.sessionCount.collectAsState()
     val allSessions by viewModel.allSessions.collectAsState()
     val activitiesDefs by viewModel.activities.collectAsState()
     
-    var currentMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDateForActivity by remember { mutableStateOf<LocalDate?>(null) }
     
     // Utiliser allSessions pour l'affichage du calendrier (pas limité à la période)
     val sessionsByDate = allSessions.groupBy { it.date }
     val datesWithNotes by viewModel.datesWithStandaloneNotes.collectAsState()
+    
+    // HorizontalPager for smooth carousel month transitions
+    val initialPage = 1200 // large center so user can scroll far back/forward
+    val calendarPagerState = rememberPagerState(initialPage = initialPage, pageCount = { 2400 })
+    val baseMonth = remember { YearMonth.now() }
+    val currentMonth = remember(calendarPagerState.currentPage) {
+        baseMonth.plusMonths((calendarPagerState.currentPage - initialPage).toLong())
+    }
+    val calendarScope = rememberCoroutineScope()
     
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 20.dp)) {
         val today = LocalDate.now()
@@ -870,7 +878,7 @@ fun CalendarTab(viewModel: GymViewModel) {
         Spacer(modifier = Modifier.height(16.dp))
         
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { currentMonth = currentMonth.minusMonths(1) }) {
+            IconButton(onClick = { calendarScope.launch { calendarPagerState.animateScrollToPage(calendarPagerState.currentPage - 1) } }) {
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Mois précédent", tint = MaterialTheme.colorScheme.onSurface)
             }
             Text(
@@ -878,7 +886,7 @@ fun CalendarTab(viewModel: GymViewModel) {
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
-            IconButton(onClick = { currentMonth = currentMonth.plusMonths(1) }) {
+            IconButton(onClick = { calendarScope.launch { calendarPagerState.animateScrollToPage(calendarPagerState.currentPage + 1) } }) {
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Mois suivant", tint = MaterialTheme.colorScheme.onSurface)
             }
         }
@@ -899,64 +907,85 @@ fun CalendarTab(viewModel: GymViewModel) {
         
         Spacer(modifier = Modifier.height(8.dp))
         
-        val firstDayOfMonth = currentMonth.atDay(1)
-        val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value
-        val daysInMonth = currentMonth.lengthOfMonth()
-        val totalCells = ((firstDayOfWeek - 1) + daysInMonth + 6) / 7 * 7
-        val days = (1..totalCells).map { index ->
-            val dayOffset = index - firstDayOfWeek
-            if (dayOffset in 0 until daysInMonth) currentMonth.atDay(dayOffset + 1) else null
-        }
-        
-        // Grille calendrier (Column+Row au lieu de LazyVerticalGrid pour que la zone vide
-        // en dessous ne consomme pas les swipes dédiés à la navigation d'onglets)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .pointerInput(currentMonth) {
-                    var totalDrag = 0f
-                    detectHorizontalDragGestures(
-                        onDragStart = { totalDrag = 0f },
-                        onDragEnd = {
-                            if (totalDrag > 100f) currentMonth = currentMonth.minusMonths(1)
-                            else if (totalDrag < -100f) currentMonth = currentMonth.plusMonths(1)
-                        },
-                        onHorizontalDrag = { change, dragAmount ->
-                            change.consume()
-                            totalDrag += dragAmount
-                        }
-                    )
-                },
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            days.chunked(7).forEach { week ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    week.forEach { date ->
-                        val sessions = date?.let { sessionsByDate[it] } ?: emptyList()
-                        val isGymDay = sessions.isNotEmpty()
-                        val isFuture = date?.isAfter(today) == true
-                        val hasNote = date != null && datesWithNotes.contains(date)
-                        Box(modifier = Modifier.weight(1f)) {
-                            CalendarDay(
-                                date = date,
-                                isGymDay = isGymDay,
-                                activities = sessions.map { it.activity },
-                                activityDefs = activitiesDefs,
-                                isToday = date == today,
-                                isFuture = isFuture,
-                                hasNote = hasNote,
-                                onClick = { if (date != null) selectedDateForActivity = date }
-                            )
+        // Smooth carousel pager for calendar grid
+        HorizontalPager(
+            state = calendarPagerState,
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            beyondBoundsPageCount = 1,
+            key = { it }
+        ) { page ->
+            val pageMonth = baseMonth.plusMonths((page - initialPage).toLong())
+            val firstDayOfMonth = pageMonth.atDay(1)
+            val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value
+            val daysInMonth = pageMonth.lengthOfMonth()
+            val totalCells = ((firstDayOfWeek - 1) + daysInMonth + 6) / 7 * 7
+            
+            // Build days list: prev month filler + current month + next month filler
+            val prevMonth = pageMonth.minusMonths(1)
+            val nextMonth = pageMonth.plusMonths(1)
+            data class CalendarCell(val date: LocalDate, val isCurrentMonth: Boolean)
+            val days = (1..totalCells).map { index ->
+                val dayOffset = index - firstDayOfWeek
+                when {
+                    dayOffset < 0 -> {
+                        val prevDay = prevMonth.lengthOfMonth() + dayOffset + 1
+                        CalendarCell(prevMonth.atDay(prevDay), false)
+                    }
+                    dayOffset >= daysInMonth -> {
+                        val nextDay = dayOffset - daysInMonth + 1
+                        CalendarCell(nextMonth.atDay(nextDay), false)
+                    }
+                    else -> CalendarCell(pageMonth.atDay(dayOffset + 1), true)
+                }
+            }
+            
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                days.chunked(7).forEach { week ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        week.forEach { cell ->
+                            val date = cell.date
+                            val sessions = sessionsByDate[date] ?: emptyList()
+                            val isGymDay = sessions.isNotEmpty()
+                            val isFuture = date.isAfter(today)
+                            val hasNote = datesWithNotes.contains(date)
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (cell.isCurrentMonth) {
+                                    CalendarDay(
+                                        date = date,
+                                        isGymDay = isGymDay,
+                                        activities = sessions.map { it.activity },
+                                        activityDefs = activitiesDefs,
+                                        isToday = date == today,
+                                        isFuture = isFuture,
+                                        hasNote = hasNote,
+                                        onClick = { selectedDateForActivity = date }
+                                    )
+                                } else {
+                                    // Faded prev/next month day
+                                    CalendarDay(
+                                        date = date,
+                                        isGymDay = isGymDay,
+                                        activities = sessions.map { it.activity },
+                                        activityDefs = activitiesDefs,
+                                        isToday = false,
+                                        isFuture = isFuture,
+                                        hasNote = hasNote,
+                                        isOutsideMonth = true,
+                                        onClick = { selectedDateForActivity = date }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-        // Zone vide = propagée au HorizontalPager pour swipe vers autre onglet
-        Spacer(modifier = Modifier.weight(1f))
     }
     
     selectedDateForActivity?.let { date ->
@@ -1081,9 +1110,13 @@ fun CalendarDay(
     isToday: Boolean,
     isFuture: Boolean,
     hasNote: Boolean = false,
+    isOutsideMonth: Boolean = false,
     onClick: () -> Unit
 ) {
+    val outsideAlpha = 0.3f
     val backgroundColor = when {
+        isOutsideMonth && isGymDay -> Color(0xFF2563EB).copy(alpha = 0.15f)
+        isOutsideMonth -> Color.Transparent
         isGymDay && isFuture -> Color(0xFF2563EB).copy(alpha = 0.35f)
         isGymDay -> Color(0xFF2563EB)
         isToday -> MaterialTheme.colorScheme.primaryContainer
@@ -1092,6 +1125,7 @@ fun CalendarDay(
     }
 
     val textColor = when {
+        isOutsideMonth -> MaterialTheme.colorScheme.onSurface.copy(alpha = outsideAlpha)
         isGymDay && isFuture -> Color.White.copy(alpha = 0.7f)
         isGymDay -> Color.White
         isToday -> MaterialTheme.colorScheme.onPrimaryContainer
@@ -1105,17 +1139,17 @@ fun CalendarDay(
             .aspectRatio(1f)
             .clip(RoundedCornerShape(6.dp))
             .background(backgroundColor)
-            .then(if (isToday && !isGymDay) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp)) else Modifier)
+            .then(if (isToday && !isGymDay && !isOutsideMonth) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp)) else Modifier)
             .clickable(enabled = date != null) { onClick() },
         contentAlignment = Alignment.Center
     ) {
         if (date != null) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(date.dayOfMonth.toString(), color = textColor, fontWeight = if (isGymDay || isToday) FontWeight.Bold else FontWeight.Normal, fontSize = 14.sp)
+                Text(date.dayOfMonth.toString(), color = textColor, fontWeight = if (!isOutsideMonth && (isGymDay || isToday)) FontWeight.Bold else FontWeight.Normal, fontSize = 14.sp)
                 if (isGymDay && activities.isNotEmpty()) {
                     val displayEmoji = if (activities.size > 1) "🏆" else getActivityEmoji(activities.first(), activityDefs)
-                    Text(displayEmoji, fontSize = 10.sp)
-                } else if (hasNote && !isGymDay) {
+                    Text(displayEmoji, fontSize = 10.sp, modifier = if (isOutsideMonth) Modifier.graphicsLayer { alpha = outsideAlpha } else Modifier)
+                } else if (hasNote && !isGymDay && !isOutsideMonth) {
                     // Point discret indiquant une note standalone
                     Box(
                         modifier = Modifier
