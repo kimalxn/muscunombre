@@ -905,12 +905,12 @@ fun CalendarTab(viewModel: GymViewModel) {
             }
         }
         
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         
         // Smooth carousel pager for calendar grid
         HorizontalPager(
             state = calendarPagerState,
-            modifier = Modifier.fillMaxWidth().weight(1f),
+            modifier = Modifier.fillMaxWidth().wrapContentHeight(),
             beyondBoundsPageCount = 1,
             key = { it }
         ) { page ->
@@ -986,6 +986,8 @@ fun CalendarTab(viewModel: GymViewModel) {
                 }
             }
         }
+        // Zone vide = propagée au HorizontalPager parent pour swipe vers autre onglet
+        Spacer(modifier = Modifier.weight(1f))
     }
     
     selectedDateForActivity?.let { date ->
