@@ -364,9 +364,10 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
     val daysRemaining = endDate?.let { java.time.temporal.ChronoUnit.DAYS.between(today, it).toInt().coerceAtLeast(0) } ?: 0
     val totalDays = if (startDate != null && endDate != null) java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate).toInt() else 0
     val daysPassed = startDate?.let { java.time.temporal.ChronoUnit.DAYS.between(it, today).toInt().coerceAtLeast(0) } ?: 0
-    // Counts scoped to the active period (for stats, cost, summary)
-    val activityCounts = sessionsInPeriod.groupingBy { it.activity }.eachCount()
-    val periodSessionCount = sessionsInPeriod.size
+    // Counts scoped to the active period (for stats, cost, summary) — uniquement les séances confirmées
+    val confirmedInPeriod = sessionsInPeriod.filter { it.confirmed }
+    val activityCounts = confirmedInPeriod.groupingBy { it.activity }.eachCount()
+    val periodSessionCount = confirmedInPeriod.size
     val paidSessionCount = activitiesDefs.filter { it.price > 0 }.sumOf { activityCounts[it.name] ?: 0 }
     val globalPricePerSession = if (paidSessionCount > 0 && subscriptionPrice > 0) subscriptionPrice / paidSessionCount else 0.0
     // Delta computation for price change animation
@@ -717,7 +718,7 @@ private fun PriceChangeOverlay(delta: Double, triggerKey: Int) {
 @Composable
 fun UserTab(viewModel: GymViewModel) {
     val sessionsInPeriod by viewModel.sessionsInPeriod.collectAsState()
-    val periodSessionCount = sessionsInPeriod.size
+    val periodSessionCount = sessionsInPeriod.count { it.confirmed }
     val startDate by viewModel.startDate.collectAsState()
     val endDate by viewModel.endDate.collectAsState()
     val periodDays = if (startDate != null && endDate != null) java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate).toInt().coerceAtLeast(1) else 365
@@ -893,8 +894,8 @@ fun CalendarTab(viewModel: GymViewModel) {
         val today = LocalDate.now()
         val startOfWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val endOfWeek = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
-        val thisWeekCount = allSessions.count { it.date in startOfWeek..endOfWeek }
-        val thisMonthCount = allSessions.count { YearMonth.from(it.date) == YearMonth.now() }
+        val thisWeekCount = allSessions.count { it.date in startOfWeek..endOfWeek && it.confirmed }
+        val thisMonthCount = allSessions.count { YearMonth.from(it.date) == YearMonth.now() && it.confirmed }
 
         // Stats row
         Card(
@@ -1038,11 +1039,11 @@ fun CalendarTab(viewModel: GymViewModel) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
         Spacer(modifier = Modifier.height(12.dp))
         
-        // Résumé du mois sélectionné
-        val monthSessions = allSessions.filter { YearMonth.from(it.date) == currentMonth }
+        // Résumé du mois sélectionné (uniquement sessions confirmées)
+        val monthSessions = allSessions.filter { YearMonth.from(it.date) == currentMonth && it.confirmed }
         val monthTotal = monthSessions.size
         val monthActivityCounts = monthSessions.groupingBy { it.activity }.eachCount()
-        val prevMonthSessions = allSessions.filter { YearMonth.from(it.date) == currentMonth.minusMonths(1) }
+        val prevMonthSessions = allSessions.filter { YearMonth.from(it.date) == currentMonth.minusMonths(1) && it.confirmed }
         val prevMonthTotal = prevMonthSessions.size
         val delta = monthTotal - prevMonthTotal
         
@@ -1050,6 +1051,15 @@ fun CalendarTab(viewModel: GymViewModel) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 4.dp)
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures { _, dragAmount ->
+                        if (dragAmount < -40) {
+                            calendarScope.launch { calendarPagerState.animateScrollToPage(calendarPagerState.currentPage + 1) }
+                        } else if (dragAmount > 40) {
+                            calendarScope.launch { calendarPagerState.animateScrollToPage(calendarPagerState.currentPage - 1) }
+                        }
+                    }
+                }
         ) {
             Text(
                 "$monthTotal séance${if (monthTotal > 1) "s" else ""}",

@@ -140,9 +140,9 @@ class GymViewModel(private val context: Context) : ViewModel() {
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     
-    // Nombre total de séances (pour les tiers)
+    // Nombre total de séances confirmées (pour les tiers et stats)
     val sessionCount: StateFlow<Int> = allSessions
-        .map { it.size }
+        .map { sessions -> sessions.count { it.confirmed } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     // Dates ayant une note indépendante (sans séance)
