@@ -1067,12 +1067,16 @@ fun CalendarTab(viewModel: GymViewModel) {
                     color = deltaColor
                 )
             }
-            if (monthTotal > 0) {
+            if (monthTotal > 0 || prevMonthTotal > 0) {
                 Spacer(modifier = Modifier.height(10.dp))
-                monthActivityCounts.entries.sortedByDescending { it.value }.forEach { (activity, count) ->
+                // Fusionner activités du mois courant et du mois précédent
+                val allActivitiesInScope = (monthActivityCounts.keys + prevMonthSessions.map { it.activity }).toSet()
+                allActivitiesInScope.sortedByDescending { monthActivityCounts[it] ?: 0 }.forEach { activity ->
+                    val count = monthActivityCounts[activity] ?: 0
                     val emoji = getActivityEmoji(activity, activitiesDefs)
                     val prevActivityCount = prevMonthSessions.count { it.activity == activity }
                     val actDelta = count - prevActivityCount
+                    val isAbsent = count == 0
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -1081,14 +1085,14 @@ fun CalendarTab(viewModel: GymViewModel) {
                         Text(
                             "$emoji $activity",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = if (isAbsent) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 "$count",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = if (isAbsent) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface
                             )
                             Box(modifier = Modifier.width(40.dp), contentAlignment = Alignment.CenterEnd) {
                                 if (actDelta != 0) {
