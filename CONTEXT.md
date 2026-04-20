@@ -27,7 +27,17 @@ Application Android de suivi sportif. Kotlin + Jetpack Compose + Material 3. Sin
 - `standalone_notes_json` : notes indépendantes (sans séance), map date→texte en JSON
 
 ### GymViewModel.kt
-- **Tiers** : `GamificationTier` data class. 7 niveaux : Niveau 7 (0-10 séances, pire) → Niveau 1 (251+, meilleur). `displayLevel = 8 - tier`, `displayName = "Niveau $displayLevel"`.
+- **Tiers** : `GamificationTier` data class. 7 niveaux : Niveau 7 (pire) → Niveau 1 (meilleur). `displayLevel = 8 - tier`, `displayName = "Niveau $displayLevel"`.
+- **Calcul au pro-rata** : les seuils de chaque niveau sont ajustés automatiquement selon la durée de la période de suivi. Les seuils de référence sont définis pour 365 jours (1 an) :
+  - Niveau 7 : 0–10 séances
+  - Niveau 6 : 11–25 séances
+  - Niveau 5 : 26–50 séances
+  - Niveau 4 : 51–100 séances
+  - Niveau 3 : 101–175 séances
+  - Niveau 2 : 176–250 séances
+  - Niveau 1 : 251+ séances
+- **Formule** : `seuil_ajusté = round(seuil_base × durée_période / 365)`. Exemple pour une période de 200 jours : Niveau 6 passe de 11–25 à 6–14 séances. Le minimum du Niveau 7 reste toujours 0.
+- **Fonction** : `getScaledTiers(periodDays: Int)` retourne la liste des 7 tiers ajustés. `getTierForSessions(count, tiers)` détermine le tier actuel. `getProgressInTier(count, tier)` calcule la progression en %.
 - **Flows principaux** : `allSessions`, `sessionsInPeriod` (combine startDate+endDate → flatMapLatest → DAO), `sessionCount` (allSessions.size, pour les tiers), `subscriptionPrice` (somme des prix > 0), `datesWithStandaloneNotes`
 - **Fonctions suspend** : `addSessionSuspend`, `removeActivitySuspend`, `updateNoteSuspend`, `getNoteForDate`, `getStandaloneNoteForDate`
 - **CRUD activités** : `addActivity`, `updateActivity`, `removeActivity`

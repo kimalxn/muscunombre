@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.roundToInt
 import java.time.LocalDate
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "gym_tracker_prefs")
@@ -32,18 +33,42 @@ data class GamificationTier(
 val GamificationTier.displayLevel: Int get() = 8 - tier
 val GamificationTier.displayName: String get() = "Niveau $displayLevel"
 
-val TIERS = listOf(
-    GamificationTier(1, "Niveau 7", 0, 10, "0–10 séances", 0xFF9CA3AF),
-    GamificationTier(2, "Niveau 6", 11, 25, "11–25 séances", 0xFF60A5FA),
-    GamificationTier(3, "Niveau 5", 26, 50, "26–50 séances", 0xFF34D399),
-    GamificationTier(4, "Niveau 4", 51, 100, "51–100 séances", 0xFF818CF8),
-    GamificationTier(5, "Niveau 3", 101, 175, "101–175 séances", 0xFFF59E0B),
-    GamificationTier(6, "Niveau 2", 176, 250, "176–250 séances", 0xFFEF4444),
-    GamificationTier(7, "Niveau 1", 251, Int.MAX_VALUE, "251+ séances", 0xFF2563EB)
+// Seuils de référence pour 365 jours (1 an)
+private val BASE_PERIOD_DAYS = 365
+private val BASE_THRESHOLDS = listOf(
+    Triple(0, 10, 0xFF9CA3AF),
+    Triple(11, 25, 0xFF60A5FA),
+    Triple(26, 50, 0xFF34D399),
+    Triple(51, 100, 0xFF818CF8),
+    Triple(101, 175, 0xFFF59E0B),
+    Triple(176, 250, 0xFFEF4444),
+    Triple(251, Int.MAX_VALUE, 0xFF2563EB)
 )
 
-fun getTierForSessions(count: Int): GamificationTier {
-    return TIERS.find { count >= it.minSessions && count <= it.maxSessions } ?: TIERS.first()
+// Génère les tiers au pro-rata de la période
+// Formule : seuil_ajusté = round(seuil_base * periodDays / 365)
+fun getScaledTiers(periodDays: Int): List<GamificationTier> {
+    val ratio = periodDays.toDouble() / BASE_PERIOD_DAYS
+    return BASE_THRESHOLDS.mapIndexed { index, (baseMin, baseMax, color) ->
+        val scaledMin = if (index == 0) 0 else (baseMin * ratio).roundToInt()
+        val scaledMax = if (baseMax == Int.MAX_VALUE) Int.MAX_VALUE else (baseMax * ratio).roundToInt()
+        val desc = if (scaledMax == Int.MAX_VALUE) "$scaledMin+ séances" else "$scaledMin–$scaledMax séances"
+        GamificationTier(
+            tier = index + 1,
+            name = "Niveau ${7 - index}",
+            minSessions = scaledMin,
+            maxSessions = scaledMax,
+            description = desc,
+            colorHex = color
+        )
+    }
+}
+
+// Conserve TIERS comme alias pour 365 jours (rétro-compatibilité)
+val TIERS = getScaledTiers(365)
+
+fun getTierForSessions(count: Int, tiers: List<GamificationTier> = TIERS): GamificationTier {
+    return tiers.find { count >= it.minSessions && count <= it.maxSessions } ?: tiers.first()
 }
 
 fun getProgressInTier(count: Int, tier: GamificationTier): Float {
@@ -66,6 +91,7 @@ class GymViewModel(private val context: Context) : ViewModel() {
         private val END_DATE_KEY = stringPreferencesKey("end_date")
         private val ONBOARDING_COMPLETED_KEY = booleanPreferencesKey("onboarding_completed")
         private val STANDALONE_NOTES_KEY = stringPreferencesKey("standalone_notes_json")
+        private val THEME_MODE_KEY = stringPreferencesKey("theme_mode")
     }
     
     private val database = GymDatabase.getDatabase(context)
@@ -88,6 +114,13 @@ class GymViewModel(private val context: Context) : ViewModel() {
     
     private val _onboardingCompleted = MutableStateFlow(false)
     val onboardingCompleted: StateFlow<Boolean> = _onboardingCompleted.asStateFlow()
+    
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    
+    // Theme mode: "system", "light", "dark"
+    private val _themeMode = MutableStateFlow("system")
+    val themeMode: StateFlow<String> = _themeMode.asStateFlow()
     
     // Toutes les sessions
     val allSessions: StateFlow<List<GymSession>> = sessionDao.getAllSessions()
@@ -158,6 +191,7 @@ class GymViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch {
             context.dataStore.data.collect { preferences ->
                 _onboardingCompleted.value = preferences[ONBOARDING_COMPLETED_KEY] ?: false
+                _themeMode.value = preferences[THEME_MODE_KEY] ?: "system"
                 
                 val startDateStr = preferences[START_DATE_KEY]
                 _startDate.value = startDateStr?.let { LocalDate.parse(it) }
@@ -193,6 +227,8 @@ class GymViewModel(private val context: Context) : ViewModel() {
                         _activities.value = DEFAULT_ACTIVITIES
                     }
                 }
+                
+                _isLoading.value = false
             }
         }
     }
@@ -237,15 +273,23 @@ class GymViewModel(private val context: Context) : ViewModel() {
     
 
     // Versions suspend pour usage ordonné dans les coroutines UI
-    suspend fun addSessionSuspend(date: LocalDate, activity: String) {
+    suspend fun addSessionSuspend(date: LocalDate, activity: String, confirmed: Boolean = true) {
         val existing = sessionDao.getSessionByDateAndActivity(date, activity)
         if (existing == null) {
-            sessionDao.insertSession(GymSession(date = date, activity = activity))
+            sessionDao.insertSession(GymSession(date = date, activity = activity, confirmed = confirmed))
         }
     }
 
     suspend fun removeActivitySuspend(date: LocalDate, activity: String) {
         sessionDao.deleteSessionByDateAndActivity(date, activity)
+    }
+
+    suspend fun confirmSessionSuspend(date: LocalDate, activity: String) {
+        sessionDao.confirmSession(date, activity)
+    }
+
+    suspend fun getUnconfirmedSessionsForDate(date: LocalDate): List<GymSession> {
+        return sessionDao.getUnconfirmedSessionsByDate(date)
     }
 
     suspend fun updateNoteSuspend(date: LocalDate, note: String) {
@@ -286,6 +330,7 @@ class GymViewModel(private val context: Context) : ViewModel() {
                         put("date", session.date.toString())
                         put("activity", session.activity)
                         put("loggedAt", session.loggedAt)
+                        put("confirmed", session.confirmed)
                         if (session.note.isNotEmpty()) put("note", session.note)
                     })
                 }
@@ -355,7 +400,8 @@ class GymViewModel(private val context: Context) : ViewModel() {
                     date = LocalDate.parse(sessionObj.getString("date")),
                     activity = sessionObj.getString("activity"),
                     loggedAt = sessionObj.optLong("loggedAt", System.currentTimeMillis()),
-                    note = sessionObj.optString("note", "")
+                    note = sessionObj.optString("note", ""),
+                    confirmed = sessionObj.optBoolean("confirmed", true)
                 )
             }
             sessionDao.insertSessions(sessions)
@@ -409,6 +455,14 @@ class GymViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch {
             context.dataStore.edit { preferences ->
                 preferences[END_DATE_KEY] = date.toString()
+            }
+        }
+    }
+    
+    fun setThemeMode(mode: String) {
+        viewModelScope.launch {
+            context.dataStore.edit { preferences ->
+                preferences[THEME_MODE_KEY] = mode
             }
         }
     }

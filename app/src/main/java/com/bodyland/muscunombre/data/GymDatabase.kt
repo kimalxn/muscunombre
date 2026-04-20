@@ -37,7 +37,8 @@ data class GymSession(
     val date: LocalDate,
     val activity: String = "Workout",
     val loggedAt: Long = System.currentTimeMillis(),
-    val note: String = ""
+    val note: String = "",
+    val confirmed: Boolean = true
 )
 
 @Dao
@@ -86,6 +87,12 @@ interface GymSessionDao {
     
     @Query("SELECT note FROM gym_sessions WHERE date = :date LIMIT 1")
     suspend fun getNoteForDate(date: LocalDate): String?
+    
+    @Query("UPDATE gym_sessions SET confirmed = 1 WHERE date = :date AND activity = :activity")
+    suspend fun confirmSession(date: LocalDate, activity: String)
+    
+    @Query("SELECT * FROM gym_sessions WHERE date = :date AND confirmed = 0")
+    suspend fun getUnconfirmedSessionsByDate(date: LocalDate): List<GymSession>
 }
 
 class Converters {
@@ -100,7 +107,7 @@ class Converters {
     }
 }
 
-@Database(entities = [GymSession::class], version = 5, exportSchema = false)
+@Database(entities = [GymSession::class], version = 6, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class GymDatabase : RoomDatabase() {
     abstract fun gymSessionDao(): GymSessionDao
@@ -121,6 +128,12 @@ abstract class GymDatabase : RoomDatabase() {
             }
         }
         
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE gym_sessions ADD COLUMN confirmed INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+        
         fun getDatabase(context: android.content.Context): GymDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -128,7 +141,7 @@ abstract class GymDatabase : RoomDatabase() {
                     GymDatabase::class.java,
                     "gym_database"
                 )
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

@@ -92,9 +92,10 @@ val AppShapes = Shapes(
 fun MuscuNombreTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
+    tierColorOverride: Color? = null,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
+    val baseScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
@@ -102,6 +103,14 @@ fun MuscuNombreTheme(
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }
+    // Override primary avec la couleur du tier si fournie
+    val colorScheme = if (tierColorOverride != null) {
+        baseScheme.copy(
+            primary = tierColorOverride,
+            primaryContainer = tierColorOverride.copy(alpha = 0.12f),
+            onPrimaryContainer = tierColorOverride
+        )
+    } else baseScheme
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {

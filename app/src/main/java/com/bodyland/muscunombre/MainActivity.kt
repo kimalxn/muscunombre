@@ -12,10 +12,12 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -55,6 +57,7 @@ import com.bodyland.muscunombre.data.ActivityDefinition
 import com.bodyland.muscunombre.data.GymSession
 import com.bodyland.muscunombre.data.getActivityEmoji
 import com.bodyland.muscunombre.TIERS
+import com.bodyland.muscunombre.getScaledTiers
 import com.bodyland.muscunombre.getTierForSessions
 import com.bodyland.muscunombre.getProgressInTier
 import com.bodyland.muscunombre.ui.theme.MuscuNombreTheme
@@ -70,12 +73,30 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MuscuNombreTheme {
+            val viewModel: GymViewModel = viewModel(
+                factory = GymViewModelFactory(this)
+            )
+            val themeMode by viewModel.themeMode.collectAsState()
+            val darkTheme = when (themeMode) {
+                "light" -> false
+                "dark" -> true
+                else -> isSystemInDarkTheme()
+            }
+            // Couleur du tier pour colorier toute l'app
+            val sessionsInPeriod by viewModel.sessionsInPeriod.collectAsState()
+            val vmStartDate by viewModel.startDate.collectAsState()
+            val vmEndDate by viewModel.endDate.collectAsState()
+            val periodDays = if (vmStartDate != null && vmEndDate != null)
+                java.time.temporal.ChronoUnit.DAYS.between(vmStartDate, vmEndDate).toInt().coerceAtLeast(1) else 365
+            val scaledTiersRoot = remember(periodDays) { getScaledTiers(periodDays) }
+            val currentTierRoot = getTierForSessions(sessionsInPeriod.size, scaledTiersRoot)
+            val tierColor = Color(currentTierRoot.colorHex)
+            MuscuNombreTheme(darkTheme = darkTheme, tierColorOverride = tierColor) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    GymRatApp()
+                    GymRatApp(viewModel)
                 }
             }
         }
@@ -84,15 +105,19 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GymRatApp() {
-    val context = LocalContext.current
-    val viewModel: GymViewModel = viewModel(
-        factory = GymViewModelFactory(context)
-    )
+fun GymRatApp(viewModel: GymViewModel) {
     
     val onboardingCompleted by viewModel.onboardingCompleted.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
     
-    if (!onboardingCompleted) {
+    if (isLoading) {
+        // Écran vide pendant le chargement pour éviter le flash "Bienvenue"
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+        )
+    } else if (!onboardingCompleted) {
         OnboardingScreen(viewModel)
     } else {
         MainAppContent(viewModel)
@@ -328,6 +353,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
 
     var selectedActivities by remember { mutableStateOf(setOf<String>()) }
     val todayActivities = allSessions.filter { it.date == today }.map { it.activity }.toSet()
+    val unconfirmedActivities = allSessions.filter { it.date == today && !it.confirmed }.map { it.activity }.toSet()
     LaunchedEffect(todayActivities) { selectedActivities = todayActivities }
 
     // Price change animation state
@@ -353,8 +379,10 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
             actDef.name to (newPrice - oldPrice)
         }
     } else emptyMap()
-    // Tier scoped to the active period
-    val currentTier = getTierForSessions(periodSessionCount)
+    // Tier scoped to the active period, scaled by period duration
+    val periodDays = if (startDate != null && endDate != null) java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate).toInt().coerceAtLeast(1) else 365
+    val scaledTiers = remember(periodDays) { getScaledTiers(periodDays) }
+    val currentTier = getTierForSessions(periodSessionCount, scaledTiers)
     val progress = getProgressInTier(periodSessionCount, currentTier)
 
     Column(
@@ -448,7 +476,9 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(activity, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                                if (alreadyLogged && isSelected) {
+                                if (alreadyLogged && isSelected && unconfirmedActivities.contains(activity)) {
+                                    Text("En prévision", style = MaterialTheme.typography.bodySmall, color = Color(0xFFF59E0B))
+                                } else if (alreadyLogged && isSelected) {
                                     Text("Enregistrée", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
                                 }
                             }
@@ -477,7 +507,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
-                val hasChanges = selectedActivities != todayActivities
+                val hasChanges = selectedActivities != todayActivities || unconfirmedActivities.isNotEmpty()
                 Button(
                     onClick = {
                         // Capture current prices before DB update
@@ -488,6 +518,12 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                         }
                         scope.launch {
                             val today = LocalDate.now()
+                            // Confirmer les séances prévues qui sont toujours sélectionnées
+                            unconfirmedActivities.forEach { activity ->
+                                if (selectedActivities.contains(activity)) {
+                                    viewModel.confirmSessionSuspend(today, activity)
+                                }
+                            }
                             selectedActivities.forEach { if (!todayActivities.contains(it)) viewModel.addSessionSuspend(today, it) }
                             todayActivities.forEach { if (!selectedActivities.contains(it)) viewModel.removeActivitySuspend(today, it) }
                             animationKey++
@@ -579,7 +615,7 @@ fun SessionTrackingTab(viewModel: GymViewModel) {
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 if (currentTier.tier < 7) {
-                    val nextTier = TIERS[currentTier.tier]
+                    val nextTier = scaledTiers[currentTier.tier]
                     Text(
                         "${currentTier.maxSessions - periodSessionCount + 1} séances avant ${nextTier.displayName}",
                         style = MaterialTheme.typography.bodySmall,
@@ -682,8 +718,11 @@ private fun PriceChangeOverlay(delta: Double, triggerKey: Int) {
 fun UserTab(viewModel: GymViewModel) {
     val sessionsInPeriod by viewModel.sessionsInPeriod.collectAsState()
     val periodSessionCount = sessionsInPeriod.size
+    val startDate by viewModel.startDate.collectAsState()
     val endDate by viewModel.endDate.collectAsState()
-    val currentTier = getTierForSessions(periodSessionCount)
+    val periodDays = if (startDate != null && endDate != null) java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate).toInt().coerceAtLeast(1) else 365
+    val scaledTiers = remember(periodDays) { getScaledTiers(periodDays) }
+    val currentTier = getTierForSessions(periodSessionCount, scaledTiers)
     val progress = getProgressInTier(periodSessionCount, currentTier)
     val tierColor = Color(currentTier.colorHex)
     val today = LocalDate.now()
@@ -732,7 +771,7 @@ fun UserTab(viewModel: GymViewModel) {
 
         // Progression vers le tier suivant
         if (currentTier.tier < 7) {
-            val nextTier = TIERS[currentTier.tier]
+            val nextTier = scaledTiers[currentTier.tier]
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -779,7 +818,7 @@ fun UserTab(viewModel: GymViewModel) {
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                TIERS.forEachIndexed { index, tier ->
+                scaledTiers.forEachIndexed { index, tier ->
                     val isCurrentTier = tier.tier == currentTier.tier
                     val isUnlocked = periodSessionCount >= tier.minSessions
                     val tc = Color(tier.colorHex)
@@ -918,7 +957,7 @@ fun CalendarTab(viewModel: GymViewModel) {
             val firstDayOfMonth = pageMonth.atDay(1)
             val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value
             val daysInMonth = pageMonth.lengthOfMonth()
-            val totalCells = ((firstDayOfWeek - 1) + daysInMonth + 6) / 7 * 7
+            val totalCells = 42 // Toujours 6 lignes pour une hauteur stable
             
             // Build days list: prev month filler + current month + next month filler
             val prevMonth = pageMonth.minusMonths(1)
@@ -940,45 +979,53 @@ fun CalendarTab(viewModel: GymViewModel) {
             }
             
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 days.chunked(7).forEach { week ->
+                    val allOutside = week.none { it.isCurrentMonth }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        week.forEach { cell ->
-                            val date = cell.date
-                            val sessions = sessionsByDate[date] ?: emptyList()
-                            val isGymDay = sessions.isNotEmpty()
-                            val isFuture = date.isAfter(today)
-                            val hasNote = datesWithNotes.contains(date)
-                            Box(modifier = Modifier.weight(1f)) {
-                                if (cell.isCurrentMonth) {
-                                    CalendarDay(
-                                        date = date,
-                                        isGymDay = isGymDay,
-                                        activities = sessions.map { it.activity },
-                                        activityDefs = activitiesDefs,
-                                        isToday = date == today,
-                                        isFuture = isFuture,
-                                        hasNote = hasNote,
-                                        onClick = { selectedDateForActivity = date }
-                                    )
-                                } else {
-                                    // Faded prev/next month day
-                                    CalendarDay(
-                                        date = date,
-                                        isGymDay = isGymDay,
-                                        activities = sessions.map { it.activity },
-                                        activityDefs = activitiesDefs,
-                                        isToday = false,
-                                        isFuture = isFuture,
-                                        hasNote = hasNote,
-                                        isOutsideMonth = true,
-                                        onClick = { selectedDateForActivity = date }
-                                    )
+                        if (allOutside) {
+                            // Ligne vide invisible mais qui conserve sa hauteur
+                            week.forEach { _ ->
+                                Box(modifier = Modifier.weight(1f).aspectRatio(1f))
+                            }
+                        } else {
+                            week.forEach { cell ->
+                                val date = cell.date
+                                val sessions = sessionsByDate[date] ?: emptyList()
+                                val isGymDay = sessions.isNotEmpty()
+                                val isFuture = date.isAfter(today)
+                                val hasNote = datesWithNotes.contains(date)
+                                Box(modifier = Modifier.weight(1f)) {
+                                    if (cell.isCurrentMonth) {
+                                        CalendarDay(
+                                            date = date,
+                                            isGymDay = isGymDay,
+                                            activities = sessions.map { it.activity },
+                                            activityDefs = activitiesDefs,
+                                            isToday = date == today,
+                                            isFuture = isFuture,
+                                            hasNote = hasNote,
+                                            onClick = { selectedDateForActivity = date }
+                                        )
+                                    } else {
+                                        // Faded prev/next month day
+                                        CalendarDay(
+                                            date = date,
+                                            isGymDay = isGymDay,
+                                            activities = sessions.map { it.activity },
+                                            activityDefs = activitiesDefs,
+                                            isToday = false,
+                                            isFuture = isFuture,
+                                            hasNote = hasNote,
+                                            isOutsideMonth = true,
+                                            onClick = { selectedDateForActivity = date }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -986,7 +1033,88 @@ fun CalendarTab(viewModel: GymViewModel) {
                 }
             }
         }
-        // Zone vide = propagée au HorizontalPager parent pour swipe vers autre onglet
+        // Séparation calendrier / résumé
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        // Résumé du mois sélectionné
+        val monthSessions = allSessions.filter { YearMonth.from(it.date) == currentMonth }
+        val monthTotal = monthSessions.size
+        val monthActivityCounts = monthSessions.groupingBy { it.activity }.eachCount()
+        val prevMonthSessions = allSessions.filter { YearMonth.from(it.date) == currentMonth.minusMonths(1) }
+        val prevMonthTotal = prevMonthSessions.size
+        val delta = monthTotal - prevMonthTotal
+        
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp)
+        ) {
+            Text(
+                "$monthTotal séance${if (monthTotal > 1) "s" else ""}",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (delta != 0) {
+                val deltaColor = if (delta > 0) Color(0xFF22C55E) else Color(0xFFEF4444)
+                val deltaSign = if (delta > 0) "+" else ""
+                Text(
+                    "$deltaSign$delta vs ${currentMonth.minusMonths(1).format(DateTimeFormatter.ofPattern("MMMM", Locale.FRENCH))}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = deltaColor
+                )
+            }
+            if (monthTotal > 0) {
+                Spacer(modifier = Modifier.height(10.dp))
+                monthActivityCounts.entries.sortedByDescending { it.value }.forEach { (activity, count) ->
+                    val emoji = getActivityEmoji(activity, activitiesDefs)
+                    val prevActivityCount = prevMonthSessions.count { it.activity == activity }
+                    val actDelta = count - prevActivityCount
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "$emoji $activity",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "$count",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Box(modifier = Modifier.width(40.dp), contentAlignment = Alignment.CenterEnd) {
+                                if (actDelta != 0) {
+                                    val adColor = if (actDelta > 0) Color(0xFF22C55E) else Color(0xFFEF4444)
+                                    val adSign = if (actDelta > 0) "+" else ""
+                                    Text(
+                                        "$adSign$actDelta",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = adColor
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Aucune séance ce mois",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        
         Spacer(modifier = Modifier.weight(1f))
     }
     
@@ -1079,7 +1207,7 @@ fun MultiActivitySelectionDialog(
                         // Ajouter les nouvelles activités (suspend → avant la note)
                         selectedActivities.forEach { activity ->
                             if (!existingActivities.contains(activity)) {
-                                viewModel.addSessionSuspend(date, activity)
+                                viewModel.addSessionSuspend(date, activity, confirmed = !isFutureDate)
                             }
                         }
                         // Sauvegarder la note après insertion des séances
@@ -1116,11 +1244,12 @@ fun CalendarDay(
     onClick: () -> Unit
 ) {
     val outsideAlpha = 0.3f
+    val tierPrimary = MaterialTheme.colorScheme.primary
     val backgroundColor = when {
-        isOutsideMonth && isGymDay -> Color(0xFF2563EB).copy(alpha = 0.15f)
+        isOutsideMonth && isGymDay -> tierPrimary.copy(alpha = 0.15f)
         isOutsideMonth -> Color.Transparent
-        isGymDay && isFuture -> Color(0xFF2563EB).copy(alpha = 0.35f)
-        isGymDay -> Color(0xFF2563EB)
+        isGymDay && isFuture -> tierPrimary.copy(alpha = 0.35f)
+        isGymDay -> tierPrimary
         isToday -> MaterialTheme.colorScheme.primaryContainer
         hasNote -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)
         else -> Color.Transparent
@@ -1390,6 +1519,43 @@ fun SettingsTab(viewModel: GymViewModel) {
             }
         }
         
+        // Thème
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("APPARENCE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
+                Spacer(modifier = Modifier.height(12.dp))
+                val themeMode by viewModel.themeMode.collectAsState()
+                val options = listOf("system" to "Système", "light" to "Clair", "dark" to "Sombre")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    options.forEach { (mode, label) ->
+                        val isSelected = themeMode == mode
+                        OutlinedButton(
+                            onClick = { viewModel.setThemeMode(mode) },
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.small,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent,
+                                contentColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                            )
+                        ) {
+                            Text(label, fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal)
+                        }
+                    }
+                }
+            }
+        }
+        
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1463,8 +1629,9 @@ fun SettingsTab(viewModel: GymViewModel) {
                 }
                 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val exportDateStamp = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
                     OutlinedButton(
-                        onClick = { exportLauncher.launch("muscunombre_backup.json") },
+                        onClick = { exportLauncher.launch("muscunombre_$exportDateStamp.json") },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Exporter")
@@ -1588,7 +1755,7 @@ fun SettingsTab(viewModel: GymViewModel) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("Version 4.0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Version 5.0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     
                     HorizontalDivider()
                     
